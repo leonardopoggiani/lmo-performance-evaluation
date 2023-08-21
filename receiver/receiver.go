@@ -49,35 +49,43 @@ func waitForFile(timeout time.Duration) bool {
 
 	done := make(chan bool)
 
-	go func() {
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				if event.Op&fsnotify.Create == fsnotify.Create {
-					if filepath.Clean(event.Name) == filePath {
-						fmt.Println("File 'dummy' detected.")
-						done <- true
-					}
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				log.Printf("Error occurred in watcher: %v", err)
-			default:
-				// Continue executing other tasks or operations
-			}
-		}
-	}()
+	go monitorEvents(watcher, done, filePath)
 
 	err = watcher.Add(filepath.Dir(filePath))
 	if err != nil {
 		log.Fatalf("Failed to add watcher: %v", err)
 	}
 
+	return waitForCompletionOrTimeout(done, timeout)
+}
+
+func monitorEvents(watcher *fsnotify.Watcher, done chan bool, filePath string) {
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			handleFileCreationEvent(event, done, filePath)
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			log.Printf("Error occurred in watcher: %v", err)
+		default:
+			// Continue executing other tasks or operations
+		}
+	}
+}
+
+func handleFileCreationEvent(event fsnotify.Event, done chan bool, filePath string) {
+	if event.Op&fsnotify.Create == fsnotify.Create && filepath.Clean(event.Name) == filePath {
+		fmt.Println("File 'dummy' detected.")
+		done <- true
+	}
+}
+
+func waitForCompletionOrTimeout(done chan bool, timeout time.Duration) bool {
 	select {
 	case <-done:
 		return true
