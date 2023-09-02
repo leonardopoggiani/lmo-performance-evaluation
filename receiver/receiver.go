@@ -16,6 +16,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -111,19 +112,17 @@ func deleteDummyPodAndService(ctx context.Context, clientset *kubernetes.Clients
 	return nil
 }
 
-func main() {
-	fmt.Println("Receiver program, waiting for migration request")
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	// Connect to the SQLite database
+func connectToDatabase() *sql.DB {
 	db, err := sql.Open("sqlite3", "performance.db")
 	if err != nil {
 		fmt.Println(err.Error())
+		os.Exit(1)
 	}
-	defer db.Close()
+	return db
+}
 
-	// Create the time_measurements table if it doesn't exist
-	_, err = db.Exec(`
+func createTimeMeasurementsTable(db *sql.DB) {
+	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS time_measurements (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			mode TEXT,
@@ -134,97 +133,142 @@ func main() {
 	`)
 	if err != nil {
 		fmt.Println(err.Error())
+		os.Exit(1)
 	}
+}
 
-	// Load Kubernetes config
+func getKubeconfigPath() string {
 	kubeconfigPath := os.Getenv("KUBECONFIG")
 	if kubeconfigPath == "" {
 		kubeconfigPath = "~/.kube/config"
 	}
-
 	kubeconfigPath = os.ExpandEnv(kubeconfigPath)
 	if _, err := os.Stat(kubeconfigPath); os.IsNotExist(err) {
 		fmt.Println("Kubeconfig file not found")
-		return
+		os.Exit(1)
 	}
+	return kubeconfigPath
+}
 
+func loadKubeconfig(kubeconfigPath string) *rest.Config {
 	kubeconfig, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		fmt.Println("Error loading kubeconfig")
-		return
+		os.Exit(1)
 	}
+	return kubeconfig
+}
 
-	// Create Kubernetes API client
+func createKubernetesClient(kubeconfig *rest.Config) *kubernetes.Clientset {
 	clientset, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
 		fmt.Println("Error creating kubernetes client")
-		return
+		os.Exit(1)
 	}
+	return clientset
+}
 
-	ctx := context.Background()
-
-	reconciler := migrationoperator.LiveMigrationReconciler{}
-
-	// Check if the pod exists
-	_, err = clientset.CoreV1().Pods("liqo-demo").Get(ctx, "dummy=pod", metav1.GetOptions{})
+func ensureDummyPodDeleted(ctx context.Context, clientset *kubernetes.Clientset, reconciler migrationoperator.LiveMigrationReconciler) {
+	_, err := clientset.CoreV1().Pods("liqo-demo").Get(ctx, "dummy=pod", metav1.GetOptions{})
 	if err == nil {
 		_ = deleteDummyPodAndService(ctx, clientset)
 		_ = reconciler.WaitForPodDeletion(ctx, "dummy-pod", "liqo-demo", clientset)
 	}
+}
 
-	err = reconciler.CreateDummyPod(clientset, ctx)
-	if err != nil {
+func createDummyPodAndService(ctx context.Context, clientset *kubernetes.Clientset, reconciler migrationoperator.LiveMigrationReconciler) {
+	if err := reconciler.CreateDummyPod(clientset, ctx); err != nil {
 		fmt.Println(err.Error())
-		return
+		os.Exit(1)
 	}
 
-	err = reconciler.CreateDummyService(clientset, ctx)
+	if err := reconciler.CreateDummyService(clientset, ctx); err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+}
+
+func restoreAndMeasure(ctx context.Context, directory string, clientset *kubernetes.Clientset, reconciler migrationoperator.LiveMigrationReconciler, db *sql.DB) {
+	start := time.Now()
+	pod, err := reconciler.BuildahRestore(ctx, directory, clientset)
 	if err != nil {
 		fmt.Println(err.Error())
-		return
+		os.Exit(1)
 	}
+
+	fmt.Println("Pod restored")
+	reconciler.WaitForContainerReady(pod.Name, "default", pod.Spec.Containers[0].Name, clientset)
+
+	elapsed := time.Since(start)
+	fmt.Printf("[MEASURE] Checkpointing took %d\n", elapsed.Milliseconds())
+
+	_, err = db.Exec("INSERT INTO time_measurements (mode, start_time, end_time, elapsed_time) VALUES (?, ?, ?, ?)", "sequential_restore", start, time.Now(), elapsed.Milliseconds())
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	deletePodsStartingWithTest(ctx, clientset)
+
+	if _, err := exec.Command("sudo", "rm", "-rf", directory).Output(); err != nil {
+		fmt.Println("Delete checkpoints failed")
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+}
+
+func waitForCheckpointFile(timeout time.Duration) bool {
+	filePath := "/path/to/your/checkpoint/file" // Replace with the actual file path
+
+	// Get the current time
+	startTime := time.Now()
+
+	for {
+		// Check if the file exists
+		if _, err := os.Stat(filePath); err == nil {
+			return true // File found
+		}
+
+		// If the file is not found and the timeout has elapsed, return false
+		if time.Since(startTime) >= timeout {
+			return false
+		}
+
+		// Sleep for a short interval before checking again
+		time.Sleep(1 * time.Second) // Adjust the sleep duration as needed
+	}
+}
+
+func main() {
+	fmt.Println("Receiver program, waiting for migration request")
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	db := connectToDatabase()
+	defer db.Close()
+
+	createTimeMeasurementsTable(db)
+
+	kubeconfigPath := getKubeconfigPath()
+	kubeconfig := loadKubeconfig(kubeconfigPath)
+
+	clientset := createKubernetesClient(kubeconfig)
+	ctx := context.Background()
+
+	reconciler := migrationoperator.LiveMigrationReconciler{}
+
+	ensureDummyPodDeleted(ctx, clientset, reconciler)
+	createDummyPodAndService(ctx, clientset, reconciler)
 
 	directory := "/tmp/checkpoints/checkpoints/"
 
 	for {
-		if waitForFile(21000 * time.Second) {
+		if waitForCheckpointFile(21000 * time.Second) {
 			fmt.Println("File detected, restoring pod")
-
-			start := time.Now()
-
-			pod, err := reconciler.BuildahRestore(ctx, directory, clientset)
-			if err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1) // Terminate the process with a non-zero exit code
-			} else {
-				fmt.Println("Pod restored")
-
-				reconciler.WaitForContainerReady(pod.Name, "default", pod.Spec.Containers[0].Name, clientset)
-
-				elapsed := time.Since(start)
-				fmt.Printf("[MEASURE] Checkpointing took %d\n", elapsed.Milliseconds())
-
-				// Insert the time measurement into the database
-				_, err = db.Exec("INSERT INTO time_measurements (mode, start_time, end_time, elapsed_time) VALUES (?, ?, ?, ?)", "sequential_restore", start, time.Now(), elapsed.Milliseconds())
-				if err != nil {
-					fmt.Println(err.Error())
-				}
-
-				deletePodsStartingWithTest(ctx, clientset)
-			}
-
-			/// delete checkpoints folder
-			if _, err := exec.Command("sudo", "rm", "-rf", directory).Output(); err != nil {
-				fmt.Println("Delete checkpoints failed")
-				fmt.Println(err.Error())
-				return
-			}
-
-			if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-
+			restoreAndMeasure(ctx, directory, clientset, reconciler, db)
 		} else {
 			fmt.Println("Timeout: File not detected.")
 			os.Exit(1)
