@@ -1,4 +1,4 @@
-package main
+package pkg
 
 import (
 	"context"
@@ -12,31 +12,16 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	migrationoperator "github.com/leonardopoggiani/live-migration-operator/controllers"
+	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
+	"github.com/leonardopoggiani/live-migration-operator/controllers/dummy"
+	"github.com/leonardopoggiani/live-migration-operator/controllers/utils"
+	internal "github.com/leonardopoggiani/performance-evaluation/internal"
+
 	_ "github.com/mattn/go-sqlite3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
-
-func deletePodsStartingWithTest(ctx context.Context, clientset *kubernetes.Clientset) error {
-	podList, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-
-	for _, pod := range podList.Items {
-		if pod.ObjectMeta.Name[:5] == "test-" {
-			err := clientset.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{})
-			if err != nil {
-				return err
-			}
-			fmt.Printf("Deleted pod %s\n", pod.Name)
-		}
-	}
-
-	return nil
-}
 
 func waitForFile(timeout time.Duration) bool {
 	filePath := "/tmp/checkpoints/checkpoints/dummy"
@@ -103,7 +88,7 @@ func deleteDummyPodAndService(ctx context.Context, clientset *kubernetes.Clients
 	return nil
 }
 
-func main() {
+func receiver() {
 	fmt.Println("Receiver program, waiting for migration request")
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -155,22 +140,22 @@ func main() {
 
 	ctx := context.Background()
 
-	reconciler := migrationoperator.LiveMigrationReconciler{}
+	reconciler := controllers.LiveMigrationReconciler{}
 
 	// Check if the pod exists
 	_, err = clientset.CoreV1().Pods("liqo-demo").Get(ctx, "dummy=pod", metav1.GetOptions{})
 	if err == nil {
 		_ = deleteDummyPodAndService(ctx, clientset)
-		_ = reconciler.WaitForPodDeletion(ctx, "dummy-pod", "liqo-demo", clientset)
+		_ = utils.WaitForPodDeletion(ctx, "dummy-pod", "liqo-demo", clientset)
 	}
 
-	err = reconciler.CreateDummyPod(clientset, ctx)
+	err = dummy.CreateDummyPod(clientset, ctx)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	err = reconciler.CreateDummyService(clientset, ctx)
+	err = dummy.CreateDummyService(clientset, ctx)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -191,7 +176,7 @@ func main() {
 			} else {
 				fmt.Println("Pod restored")
 
-				reconciler.WaitForContainerReady(pod.Name, "default", pod.Spec.Containers[0].Name, clientset)
+				utils.WaitForContainerReady(pod.Name, "default", pod.Spec.Containers[0].Name, clientset)
 
 				elapsed := time.Since(start)
 				fmt.Printf("[MEASURE] Checkpointing took %d\n", elapsed.Milliseconds())
@@ -202,7 +187,7 @@ func main() {
 					fmt.Println(err.Error())
 				}
 
-				deletePodsStartingWithTest(ctx, clientset)
+				internal.DeletePodsStartingWithTest(ctx, clientset)
 			}
 
 			/// delete checkpoints folder
