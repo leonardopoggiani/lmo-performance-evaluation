@@ -2,12 +2,12 @@ package internal
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
 	types "github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
@@ -15,7 +15,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetCheckpointTimeSequential(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *sql.DB) {
+func GetCheckpointTimeSequential(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn) {
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler)
@@ -69,7 +69,7 @@ func GetCheckpointTimeSequential(ctx context.Context, clientset *kubernetes.Clie
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed sequential: ", elapsed)
 
-	SaveToDB(db, int64(numContainers), float64(elapsed.Milliseconds()), "sequential", "checkpoint_times")
+	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "sequential", "checkpoint_times")
 
 	// delete checkpoint folder
 	directory := "/tmp/checkpoints/checkpoints"
@@ -88,7 +88,7 @@ func GetCheckpointTimeSequential(ctx context.Context, clientset *kubernetes.Clie
 	CleanUp(ctx, clientset, pod)
 }
 
-func GetCheckpointTimePipelined(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *sql.DB) {
+func GetCheckpointTimePipelined(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn) {
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler)
@@ -141,7 +141,7 @@ func GetCheckpointTimePipelined(ctx context.Context, clientset *kubernetes.Clien
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed pipelined: ", elapsed)
 
-	SaveToDB(db, int64(numContainers), float64(elapsed.Milliseconds()), "pipelined", "checkpoint_times")
+	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "pipelined", "checkpoint_times")
 
 	// delete checkpoint folder
 	directory := "/tmp/checkpoints/checkpoints"

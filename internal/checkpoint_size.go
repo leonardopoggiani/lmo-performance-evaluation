@@ -2,13 +2,13 @@ package internal
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
 	types "github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *sql.DB) {
+func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn) {
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler)
@@ -89,7 +89,7 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 
 	sizeInMB := float64(size) / (1024 * 1024)
 	fmt.Printf("The size of %s is %.2f MB.\n", directory, sizeInMB)
-	SaveToDB(db, int64(numContainers), sizeInMB, "pipelined", "checkpoint_sizes")
+	SaveToDB(ctx, db, int64(numContainers), sizeInMB, "pipelined", "checkpoint_sizes")
 
 	// delete checkpoints folder
 	if _, err := exec.Command("sudo", "rm", "-f", directory+"/").Output(); err != nil {
@@ -116,7 +116,7 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 	CleanUp(ctx, clientset, pod)
 }
 
-func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *sql.DB) {
+func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn) {
 
 	reconciler := controllers.LiveMigrationReconciler{}
 
@@ -190,7 +190,7 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 
 	sizeInMB := float64(size) / (1024 * 1024)
 	fmt.Printf("The size of %s is %.2f MB.\n", directory, sizeInMB)
-	SaveToDB(db, int64(numContainers), sizeInMB, "sequential", "checkpoint_sizes")
+	SaveToDB(ctx, db, int64(numContainers), sizeInMB, "sequential", "checkpoint_sizes")
 
 	// delete checkpoints folder
 	if _, err := exec.Command("sudo", "rm", "-f", directory+"/").Output(); err != nil {

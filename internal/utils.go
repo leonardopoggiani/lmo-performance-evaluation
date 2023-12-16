@@ -2,8 +2,8 @@ package internal
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/leonardopoggiani/live-migration-operator/controllers"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
 	v1 "k8s.io/api/core/v1"
@@ -104,19 +105,30 @@ func CleanUp(ctx context.Context, clientset *kubernetes.Clientset, pod *v1.Pod) 
 	}
 }
 
-func SaveToDB(db *sql.DB, numContainers int64, size float64, checkpointType string, db_name string) {
-	// Prepare SQL statement
-	stmt, err := db.Prepare("INSERT INTO " + db_name + " (containers, size, checkpoint_type) VALUES (?, ?, ?)")
+func CreateTable(ctx context.Context, conn *pgx.Conn, tableName string, columns string) {
+	_, err := conn.Exec(ctx, fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (%s)`, tableName, columns))
 	if err != nil {
-		return
+		log.Fatal(err)
 	}
-	defer stmt.Close()
+	fmt.Printf("Table %s created or already exists.\n", tableName)
+}
 
-	// Execute statement
-	_, err = stmt.Exec(numContainers, size, checkpointType)
+func SaveToDB(ctx context.Context, conn *pgx.Conn, numContainers int64, size float64, checkpointType string, tableName string) {
+	// Prepare the SQL statement
+	stmt, err := conn.Prepare(ctx, "insert", fmt.Sprintf("INSERT INTO %s (containers, size, checkpoint_type) VALUES ($1, $2, $3)"))
 	if err != nil {
+		log.Fatal(err)
 		return
 	}
+
+	// Execute the prepared statement
+	_, err = conn.Exec(ctx, stmt.SQL, numContainers, size, checkpointType)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	fmt.Println("Data inserted successfully.")
 }
 
 func CountFilesInFolder(folderPath string) (int, error) {

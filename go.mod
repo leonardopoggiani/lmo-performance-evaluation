@@ -4,6 +4,8 @@ go 1.21.4
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0
+	github.com/jackc/pgx/v5 v5.5.1
+	github.com/joho/godotenv v1.5.1
 	github.com/leonardopoggiani/live-migration-operator v0.0.0-20231126154812-e5148f3627e2
 	github.com/mattn/go-sqlite3 v1.14.18
 	k8s.io/api v0.28.4
@@ -30,6 +32,8 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -43,6 +47,7 @@ require (
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	golang.org/x/crypto v0.15.0 // indirect
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
 	golang.org/x/net v0.18.0 // indirect
 	golang.org/x/oauth2 v0.14.0 // indirect

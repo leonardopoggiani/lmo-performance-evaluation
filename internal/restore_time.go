@@ -2,13 +2,13 @@ package internal
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
 	types "github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *sql.DB) {
+func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn) {
 	// Get the start time of the restore
 
 	reconciler := controllers.LiveMigrationReconciler{}
@@ -89,7 +89,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed sequential: ", elapsed)
 
-	SaveToDB(db, int64(numContainers), float64(elapsed.Milliseconds()), "sequential", "restore_times")
+	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "sequential", "restore_times")
 
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {
@@ -108,7 +108,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	elapsed = time.Since(start)
 	fmt.Println("Elapsed pipelined: ", elapsed)
 
-	SaveToDB(db, int64(numContainers), float64(elapsed.Milliseconds()), "pipelined", "restore_times")
+	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "pipelined", "restore_times")
 
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {
@@ -129,7 +129,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	elapsed = time.Since(start)
 	fmt.Println("Elapsed parallel: ", elapsed)
 
-	SaveToDB(db, int64(numContainers), float64(elapsed.Milliseconds()), "parallelized", "restore_times")
+	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "parallelized", "restore_times")
 
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {

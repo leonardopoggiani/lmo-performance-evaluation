@@ -2,12 +2,12 @@ package internal
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
 	types "github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *sql.DB, exchange string) {
+func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn, exchange string) {
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler)
@@ -122,5 +122,5 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 	elapsed := time.Since(start)
 	fmt.Printf("Time to checkpoint and restore %d containers: %s\n", numContainers, elapsed)
 
-	SaveToDB(db, int64(numContainers), elapsed.Seconds(), exchange, "total_times")
+	SaveToDB(ctx, db, int64(numContainers), elapsed.Seconds(), exchange, "total_times")
 }

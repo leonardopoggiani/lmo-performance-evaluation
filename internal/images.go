@@ -2,13 +2,13 @@ package internal
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"os/exec"
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
 	types "github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetCheckpointImageRestoreSize(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *sql.DB) {
+func GetCheckpointImageRestoreSize(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn) {
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler)

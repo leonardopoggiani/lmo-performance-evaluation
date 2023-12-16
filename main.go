@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 	internal "github.com/leonardopoggiani/performance-evaluation/internal"
 	_ "github.com/leonardopoggiani/performance-evaluation/pkg"
 	_ "github.com/mattn/go-sqlite3"
@@ -19,42 +20,20 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Connect to database
-	db, err := sql.Open("sqlite3", "./db/checkpoint_data.db")
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
+	godotenv.Load(".env")
 
-	// Create table if it doesn't exist
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS checkpoint_sizes (timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, containers INTEGER, size FLOAT, checkpoint_type STRING)")
+	db, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		os.Exit(1)
 	}
+	defer db.Close(context.Background())
 
-	// Create table if it doesn't exist
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS checkpoint_times (timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type STRING)")
-	if err != nil {
-		panic(err)
-	}
-
-	// Create table if it doesn't exist
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS restore_times (timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type STRING)")
-	if err != nil {
-		panic(err)
-	}
-
-	// Create table if it doesn't exist
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS docker_sizes (timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT)")
-	if err != nil {
-		panic(err)
-	}
-
-	// Create table if it doesn't exist
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS total_times (timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type STRING)")
-	if err != nil {
-		panic(err)
-	}
+	internal.CreateTable(ctx, db, "checkpoint_sizes", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, size FLOAT, checkpoint_type TEXT")
+	internal.CreateTable(ctx, db, "checkpoint_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+	internal.CreateTable(ctx, db, "restore_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+	internal.CreateTable(ctx, db, "docker_sizes", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT")
+	internal.CreateTable(ctx, db, "total_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
 
 	// Load Kubernetes config
 	kubeconfigPath := os.Getenv("KUBECONFIG")
