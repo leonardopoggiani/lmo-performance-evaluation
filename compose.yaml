@@ -1,0 +1,28 @@
+version: "3.9"
+services:
+  db:
+    image: docker.io/postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: secret-password
+      POSTGRES_USER: postgres
+      POSTGRES_DB: performance
+  db-client:
+    image: docker.io/sosedoff/pgweb
+    command:
+      [
+        "--url",
+        "postgres://postgres:secret-password@db:5432/performance?sslmode=disable",
+      ]
+    depends_on:
+      - db
+    ports:
+      - 8081:8081
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    volumes:
+      - /root/.kube/config:/root/.kube/config  
+    depends_on:
+      - db
