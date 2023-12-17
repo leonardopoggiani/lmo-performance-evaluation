@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -43,7 +44,8 @@ func main() {
 
 	kubeconfigPath = os.ExpandEnv(kubeconfigPath)
 	if _, err := os.Stat(kubeconfigPath); os.IsNotExist(err) {
-		fmt.Println("kubeconfig file not existing")
+		fmt.Printf("Kubeconfig file %s not existing", kubeconfigPath)
+		return
 	}
 
 	kubeconfig, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
@@ -63,6 +65,16 @@ func main() {
 	// 	containerCounts := []int{1, 2, 3, 5, 10}
 	repetitions := 2
 	//  repetitions := 20
+
+	fmt.Print("insert y value here: ")
+	input := bufio.NewScanner(os.Stdin)
+	input.Scan()
+	fmt.Println(input.Text())
+
+	if input.Text() != "y" {
+		fmt.Println("Exiting..")
+		return
+	}
 
 	fmt.Printf("############### SIZE ###############\n")
 	for i := 0; i < repetitions; i++ {
