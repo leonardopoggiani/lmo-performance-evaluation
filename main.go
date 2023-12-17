@@ -57,7 +57,7 @@ func main() {
 	// Create Kubernetes API client
 	clientset, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
-		fmt.Println("failed to create Kubernetes client")
+		fmt.Println("Failed to create Kubernetes client")
 		return
 	}
 
@@ -66,7 +66,7 @@ func main() {
 	repetitions := 2
 	//  repetitions := 20
 
-	fmt.Print("insert y value here: ")
+	fmt.Print("Insert y value here: ")
 	input := bufio.NewScanner(os.Stdin)
 	input.Scan()
 	fmt.Println(input.Text())
