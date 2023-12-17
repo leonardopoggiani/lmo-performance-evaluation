@@ -6,6 +6,8 @@ services:
       POSTGRES_PASSWORD: secret-password
       POSTGRES_USER: postgres
       POSTGRES_DB: performance
+    ports:
+      - 15432:5432
   db-client:
     image: docker.io/sosedoff/pgweb
     command:
