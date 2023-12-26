@@ -12,18 +12,20 @@ import (
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
 	types "github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
+	"github.com/withmandala/go-log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn) {
+func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn, namespace string) {
+	logger := log.New(os.Stderr).WithColor()
 
 	reconciler := controllers.LiveMigrationReconciler{}
-	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler)
+	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
 
-	err := utils.WaitForContainerReady(pod.Name, "default", fmt.Sprintf("container-%d", numContainers-1), clientset)
+	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
@@ -34,10 +36,10 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 	var containers []types.Container
 
 	// Append the container ID and name for each container in each pod
-	pods, err := clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Println(err.Error())
-		CleanUp(ctx, clientset, pod)
+		logger.Errorf(err.Error())
+		CleanUp(ctx, clientset, pod, namespace)
 		return
 	}
 
@@ -58,9 +60,9 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 		}
 	}
 
-	err = controllers.CheckpointPodPipelined(containers, "default", pod.Name)
+	err = controllers.CheckpointPodPipelined(containers, namespace, pod.Name)
 	if err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
@@ -70,7 +72,7 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 
 	err = filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			CleanUp(ctx, clientset, pod)
+			CleanUp(ctx, clientset, pod, namespace)
 			fmt.Println(err.Error())
 			return err
 		}
@@ -82,7 +84,7 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 		return nil
 	})
 	if err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
@@ -93,38 +95,39 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 
 	// delete checkpoints folder
 	if _, err := exec.Command("sudo", "rm", "-f", directory+"/").Output(); err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
 
 	if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
 
 	// check that checkpoints folder is empty
 	if output, err := exec.Command("sudo", "ls", directory).Output(); err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	} else {
 		fmt.Printf("Output: %s\n", output)
 	}
 
-	CleanUp(ctx, clientset, pod)
+	CleanUp(ctx, clientset, pod, namespace)
 }
 
-func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn) {
+func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn, namespace string) {
+	logger := log.New(os.Stderr).WithColor()
 
 	reconciler := controllers.LiveMigrationReconciler{}
 
-	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler)
+	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
 
-	err := utils.WaitForContainerReady(pod.Name, "default", fmt.Sprintf("container-%d", numContainers-1), clientset)
+	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
@@ -135,10 +138,10 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 	var containers []types.Container
 
 	// Append the container ID and name for each container in each pod
-	pods, err := clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Println(err.Error())
-		CleanUp(ctx, clientset, pod)
+		logger.Errorf(err.Error())
+		CleanUp(ctx, clientset, pod, namespace)
 		return
 	}
 
@@ -159,10 +162,10 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 		}
 	}
 
-	err = reconciler.CheckpointPodCrio(containers, "default", pod.Name)
+	err = reconciler.CheckpointPodCrio(containers, namespace, pod.Name)
 	if err != nil {
-		fmt.Println(err.Error())
-		CleanUp(ctx, clientset, pod)
+		logger.Errorf(err.Error())
+		CleanUp(ctx, clientset, pod, namespace)
 		return
 	}
 
@@ -172,7 +175,7 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 	err = filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			fmt.Println(err.Error())
-			CleanUp(ctx, clientset, pod)
+			CleanUp(ctx, clientset, pod, namespace)
 			return err
 		}
 		if !info.Mode().IsRegular() {
@@ -183,7 +186,7 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 		return nil
 	})
 	if err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
@@ -194,25 +197,25 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 
 	// delete checkpoints folder
 	if _, err := exec.Command("sudo", "rm", "-f", directory+"/").Output(); err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
 
 	if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
 
 	// check that checkpoints folder is empty
 	if output, err := exec.Command("sudo", "ls", directory).Output(); err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	} else {
 		fmt.Printf("Output: %s\n", output)
 	}
 
-	CleanUp(ctx, clientset, pod)
+	CleanUp(ctx, clientset, pod, namespace)
 }

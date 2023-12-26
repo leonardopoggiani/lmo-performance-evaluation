@@ -10,6 +10,7 @@ import (
 	"github.com/leonardopoggiani/live-migration-operator/controllers"
 	"github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	internal "github.com/leonardopoggiani/performance-evaluation/internal"
+	"github.com/withmandala/go-log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -18,9 +19,11 @@ import (
 )
 
 func waitForServiceCreation(clientset *kubernetes.Clientset, ctx context.Context) {
+	logger := log.New(os.Stderr).WithColor()
+
 	watcher, err := clientset.CoreV1().Services("liqo-demo").Watch(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Println("Error watching services")
+		logger.Errorf("Error watching services")
 		return
 	}
 	defer watcher.Stop()
@@ -50,8 +53,10 @@ func waitForServiceCreation(clientset *kubernetes.Clientset, ctx context.Context
 	}
 }
 
-func sender() {
-	fmt.Println("Sender program, sending migration request")
+func sender(namespace string) {
+	logger := log.New(os.Stderr).WithColor()
+
+	logger.Infof("Sender program, sending migration request")
 
 	// Load Kubernetes config
 	kubeconfigPath := os.Getenv("KUBECONFIG")
@@ -67,14 +72,14 @@ func sender() {
 
 	kubeconfig, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
-		fmt.Println("Error loading kubeconfig")
+		logger.Errorf("Error loading kubeconfig")
 		return
 	}
 
 	// Create Kubernetes API client
 	clientset, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
-		fmt.Println("Error creating kubernetes client")
+		logger.Errorf("Error creating kubernetes client")
 		return
 	}
 
@@ -82,7 +87,7 @@ func sender() {
 
 	fmt.Println("Kubeconfig file not found")
 
-	internal.DeletePodsStartingWithTest(ctx, clientset)
+	internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	waitForServiceCreation(clientset, ctx)
 
 	reconciler := controllers.LiveMigrationReconciler{}
@@ -93,13 +98,13 @@ func sender() {
 
 	for j := 0; j <= repetitions-1; j++ {
 		fmt.Printf("Repetitions %d \n", j)
-		pod := internal.CreateTestContainers(ctx, numContainers, clientset, reconciler)
+		pod := internal.CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
 
 		// Create a slice of Container structs
 		var containers []types.Container
 
 		// Append the container ID and name for each container in each pod
-		pods, err := clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+		pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			fmt.Println(err.Error())
 			return
@@ -129,7 +134,7 @@ func sender() {
 		fmt.Println("Checkpointing pod")
 		fmt.Println("pod.Name: " + pod.Name)
 
-		err = reconciler.CheckpointPodCrio(containers, "default", pod.Name)
+		err = reconciler.CheckpointPodCrio(containers, namespace, pod.Name)
 		if err != nil {
 			fmt.Println(err.Error())
 			return
@@ -184,6 +189,6 @@ func sender() {
 			fmt.Println("Checkpoints folder created")
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset)
+		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	}
 }

@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -11,19 +12,21 @@ import (
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
 	types "github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
+	"github.com/withmandala/go-log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn, exchange string) {
+func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn, exchange string, namespace string) {
+	logger := log.New(os.Stderr).WithColor()
 
 	reconciler := controllers.LiveMigrationReconciler{}
-	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler)
+	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
 
-	err := utils.WaitForContainerReady(pod.Name, "default", fmt.Sprintf("container-%d", numContainers-1), clientset)
+	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
-		CleanUp(ctx, clientset, pod)
+		CleanUp(ctx, clientset, pod, namespace)
 		fmt.Println(err.Error())
 		return
 	}
@@ -32,10 +35,10 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 	var containers []types.Container
 
 	// Append the container ID and name for each container in each pod
-	pods, err := clientset.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Println(err.Error())
-		CleanUp(ctx, clientset, pod)
+		logger.Errorf(err.Error())
+		CleanUp(ctx, clientset, pod, namespace)
 		return
 	}
 
@@ -58,18 +61,18 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 
 	start := time.Now()
 
-	err = reconciler.CheckpointPodCrio(containers, "default", pod.Name)
+	err = reconciler.CheckpointPodCrio(containers, namespace, pod.Name)
 	if err != nil {
-		fmt.Println(err.Error())
-		CleanUp(ctx, clientset, pod)
+		logger.Errorf(err.Error())
+		CleanUp(ctx, clientset, pod, namespace)
 		return
 	}
 
-	CleanUp(ctx, clientset, pod)
+	CleanUp(ctx, clientset, pod, namespace)
 
 	pod, err = reconciler.BuildahRestore(ctx, "/tmp/checkpoints/checkpoints", clientset)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 		return
 	}
 
@@ -101,7 +104,7 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 	}
 
 	// Create the Pod
-	pod, err = clientset.CoreV1().Pods("default").Create(ctx, &v1.Pod{
+	pod, err = clientset.CoreV1().Pods(namespace).Create(ctx, &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("test-pod-%d-containers", numContainers),
 			Labels: map[string]string{
@@ -113,11 +116,11 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 		return
 	}
 
-	utils.WaitForContainerReady(pod.Name, "default", "container-"+strconv.Itoa(numContainers-1), clientset)
+	utils.WaitForContainerReady(pod.Name, namespace, "container-"+strconv.Itoa(numContainers-1), clientset)
 
 	elapsed := time.Since(start)
 	fmt.Printf("Time to checkpoint and restore %d containers: %s\n", numContainers, elapsed)

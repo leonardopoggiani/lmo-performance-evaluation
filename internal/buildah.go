@@ -2,14 +2,19 @@ package internal
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+
+	"github.com/withmandala/go-log"
 )
 
 func BuildahDeleteImage(imageName string) {
+	logger := log.New(os.Stderr).WithColor()
+
 	buildahCmd := exec.Command("sudo", "buildah", "rmi", imageName)
 	err := buildahCmd.Run()
 	if err != nil {
-		fmt.Println("Error removing image:", err)
+		logger.Errorf("Error removing image: %s", err)
 		return
 	}
 	fmt.Println("Image", imageName, "removed successfully.")

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,19 +15,21 @@ import (
 	"github.com/leonardopoggiani/live-migration-operator/controllers/dummy"
 	"github.com/leonardopoggiani/live-migration-operator/controllers/utils"
 	internal "github.com/leonardopoggiani/performance-evaluation/internal"
-
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/withmandala/go-log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 func waitForFile(timeout time.Duration) bool {
+	logger := log.New(os.Stderr).WithColor()
+
 	filePath := "/tmp/checkpoints/checkpoints/dummy"
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Fatalf("Failed to create watcher: %v", err)
+		logger.Errorf("Failed to create watcher: %v", err)
 	}
 	defer watcher.Close()
 
@@ -51,7 +52,7 @@ func waitForFile(timeout time.Duration) bool {
 				if !ok {
 					return
 				}
-				log.Printf("Error occurred in watcher: %v", err)
+				logger.Errorf("Error occurred in watcher: %v", err)
 			default:
 				// Continue executing other tasks or operations
 			}
@@ -60,7 +61,7 @@ func waitForFile(timeout time.Duration) bool {
 
 	err = watcher.Add(filepath.Dir(filePath))
 	if err != nil {
-		log.Fatalf("Failed to add watcher: %v", err)
+		logger.Errorf("Failed to add watcher: %v", err)
 	}
 
 	select {
@@ -88,14 +89,16 @@ func deleteDummyPodAndService(ctx context.Context, clientset *kubernetes.Clients
 	return nil
 }
 
-func receiver() {
+func receiver(namespace string) {
+	logger := log.New(os.Stderr).WithColor()
+
 	fmt.Println("Receiver program, waiting for migration request")
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Connect to the SQLite database
 	db, err := sql.Open("sqlite3", "performance.db")
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 	}
 	defer db.Close()
 
@@ -110,7 +113,7 @@ func receiver() {
 		)
 	`)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 	}
 
 	// Load Kubernetes config
@@ -127,14 +130,14 @@ func receiver() {
 
 	kubeconfig, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
-		fmt.Println("Error loading kubeconfig")
+		logger.Errorf("Error loading kubeconfig")
 		return
 	}
 
 	// Create Kubernetes API client
 	clientset, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
-		fmt.Println("Error creating kubernetes client")
+		logger.Errorf("Error creating kubernetes client")
 		return
 	}
 
@@ -151,13 +154,13 @@ func receiver() {
 
 	err = dummy.CreateDummyPod(clientset, ctx)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 		return
 	}
 
 	err = dummy.CreateDummyService(clientset, ctx)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 		return
 	}
 
@@ -176,7 +179,7 @@ func receiver() {
 			} else {
 				fmt.Println("Pod restored")
 
-				utils.WaitForContainerReady(pod.Name, "default", pod.Spec.Containers[0].Name, clientset)
+				utils.WaitForContainerReady(pod.Name, namespace, pod.Spec.Containers[0].Name, clientset)
 
 				elapsed := time.Since(start)
 				fmt.Printf("[MEASURE] Checkpointing took %d\n", elapsed.Milliseconds())
@@ -187,7 +190,7 @@ func receiver() {
 					fmt.Println(err.Error())
 				}
 
-				internal.DeletePodsStartingWithTest(ctx, clientset)
+				internal.DeletePodsStartingWithTest(ctx, clientset, pod.Namespace)
 			}
 
 			/// delete checkpoints folder

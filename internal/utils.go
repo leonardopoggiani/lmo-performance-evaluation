@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -14,12 +13,15 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/leonardopoggiani/live-migration-operator/controllers"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
+	"github.com/withmandala/go-log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-func CreateTestContainers(ctx context.Context, numContainers int, clientset *kubernetes.Clientset, reconciler controllers.LiveMigrationReconciler) *v1.Pod {
+func CreateTestContainers(ctx context.Context, numContainers int, clientset *kubernetes.Clientset, reconciler controllers.LiveMigrationReconciler, namespace string) *v1.Pod {
+	logger := log.New(os.Stderr).WithColor()
+
 	// Generate a random string
 	randStr := fmt.Sprintf("%d", rand.Intn(4000)+1000)
 
@@ -45,7 +47,7 @@ func CreateTestContainers(ctx context.Context, numContainers int, clientset *kub
 	}
 
 	// Create the Pod with the random string appended to the name
-	pod, err := clientset.CoreV1().Pods("default").Create(ctx, &v1.Pod{
+	pod, err := clientset.CoreV1().Pods(namespace).Create(ctx, &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("test-pod-%d-containers-%s", numContainers, randStr),
 			Labels: map[string]string{
@@ -59,26 +61,25 @@ func CreateTestContainers(ctx context.Context, numContainers int, clientset *kub
 	}, metav1.CreateOptions{})
 
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 		return nil
 	} else {
-		fmt.Printf("Pod created %s", pod.Name)
-		fmt.Println(createContainers[0].Name)
+		fmt.Printf("Pod %s created, container name: %s\n", pod.Name, createContainers[0].Name)
 	}
 
-	err = utils.WaitForContainerReady(pod.Name, "default", createContainers[0].Name, clientset)
+	err = utils.WaitForContainerReady(pod.Name, namespace, createContainers[0].Name, clientset)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 		return nil
 	} else {
-		fmt.Println("Container ready")
+		fmt.Println("Container started and ready")
 	}
 
 	return pod
 }
 
-func DeletePodsStartingWithTest(ctx context.Context, clientset *kubernetes.Clientset) error {
-	podList, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+func DeletePodsStartingWithTest(ctx context.Context, clientset *kubernetes.Clientset, namespace string) error {
+	podList, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -96,42 +97,50 @@ func DeletePodsStartingWithTest(ctx context.Context, clientset *kubernetes.Clien
 	return nil
 }
 
-func CleanUp(ctx context.Context, clientset *kubernetes.Clientset, pod *v1.Pod) {
+func CleanUp(ctx context.Context, clientset *kubernetes.Clientset, pod *v1.Pod, namespace string) {
+	logger := log.New(os.Stderr).WithColor()
+
 	fmt.Println("Garbage collecting => " + pod.Name)
-	err := clientset.CoreV1().Pods("default").Delete(ctx, pod.Name, metav1.DeleteOptions{})
+	err := clientset.CoreV1().Pods(namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{})
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 		return
 	}
 }
 
 func CreateTable(ctx context.Context, conn *pgx.Conn, tableName string, columns string) {
+	logger := log.New(os.Stderr).WithColor()
+
 	_, err := conn.Exec(ctx, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (%s)`, tableName, columns))
 	if err != nil {
-		log.Fatal(err)
+		logger.Error(err)
 	}
 	fmt.Printf("Table %s created or already exists.\n", tableName)
 }
 
 func SaveToDB(ctx context.Context, conn *pgx.Conn, numContainers int64, size float64, checkpointType string, tableName string) {
+	logger := log.New(os.Stderr).WithColor()
+
 	// Prepare the SQL statement
-	stmt, err := conn.Prepare(ctx, "insert", fmt.Sprintf("INSERT INTO %s (containers, size, checkpoint_type) VALUES ($1, $2, $3)"))
+	stmt, err := conn.Prepare(ctx, "insert", "INSERT INTO (containers, size, checkpoint_type) VALUES ($1, $2, $3)")
 	if err != nil {
-		log.Fatal(err)
+		logger.Error(err)
 		return
 	}
 
 	// Execute the prepared statement
 	_, err = conn.Exec(ctx, stmt.SQL, numContainers, size, checkpointType)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error(err)
 		return
 	}
 	fmt.Println("Data inserted successfully.")
 }
 
 func CountFilesInFolder(folderPath string) (int, error) {
+	logger := log.New(os.Stderr).WithColor()
+
 	fileCount := 0
 
 	err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
@@ -147,7 +156,7 @@ func CountFilesInFolder(folderPath string) (int, error) {
 		return nil
 	})
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Errorf(err.Error())
 		return 0, err
 	}
 

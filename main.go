@@ -6,17 +6,24 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 	internal "github.com/leonardopoggiani/performance-evaluation/internal"
 	_ "github.com/leonardopoggiani/performance-evaluation/pkg"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/withmandala/go-log"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 func main() {
+	logger := log.New(os.Stderr).WithColor()
+	logger.Info("Performance evaluation for live-migration controller")
+
 	// Use a context to cancel the loop that checks for sourcePod
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -25,7 +32,7 @@ func main() {
 
 	db, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		logger.Errorf("Unable to connect to database: %v\n", err)
 		os.Exit(1)
 	}
 	defer db.Close(context.Background())
@@ -50,21 +57,16 @@ func main() {
 
 	kubeconfig, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
-		fmt.Println("Failed to retrieve kubeconfig")
+		logger.Errorf("Failed to retrieve kubeconfig")
 		return
 	}
 
 	// Create Kubernetes API client
 	clientset, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
-		fmt.Println("Failed to create Kubernetes client")
+		logger.Errorf("Failed to create Kubernetes client")
 		return
 	}
-
-	containerCounts := []int{1}
-	// 	containerCounts := []int{1, 2, 3, 5, 10}
-	repetitions := 2
-	//  repetitions := 20
 
 	fmt.Print("Insert y value here: ")
 	input := bufio.NewScanner(os.Stdin)
@@ -76,25 +78,54 @@ func main() {
 		return
 	}
 
+	namespace := os.Getenv("NAMESPACE")
+	if kubeconfigPath == "" {
+		kubeconfigPath = "test"
+	}
+
+	nsName := &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+		},
+	}
+
+	_, err = clientset.CoreV1().Namespaces().Create(context.Background(), nsName, metav1.CreateOptions{})
+	if err != nil {
+		fmt.Printf("Failed to create namespace %s for error: %s \n", namespace, err)
+	}
+
+	containerCounts := []int{1}
+	// 	containerCounts := []int{1, 2, 3, 5, 10}
+	repetitions_count := os.Getenv("REPETITIONS")
+	if repetitions_count == "" {
+		logger.Error("Error on retrieving repetitions number")
+	}
+	repetitions, err := strconv.Atoi(repetitions_count)
+	if err != nil {
+		logger.Error("Failed to convert repetitions string to number")
+	}
+
+	//  repetitions := 20
+
 	fmt.Printf("############### SIZE ###############\n")
 	for i := 0; i < repetitions; i++ {
 		fmt.Printf("Repetition %d\n", i)
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Size for %d containers\n", numContainers)
-			internal.GetCheckpointSizePipelined(ctx, clientset, numContainers, db)
+			internal.GetCheckpointSizePipelined(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset)
+		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 		fmt.Printf("############### CHECKPOINT TIME ###############\n")
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Time for %d containers\n", numContainers)
-			internal.GetCheckpointTimePipelined(ctx, clientset, numContainers, db)
+			internal.GetCheckpointTimePipelined(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset)
+		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 	}
 
@@ -104,19 +135,19 @@ func main() {
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Size for %d containers\n", numContainers)
-			internal.GetCheckpointSizeSequential(ctx, clientset, numContainers, db)
+			internal.GetCheckpointSizeSequential(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset)
+		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 		fmt.Printf("############### CHECKPOINT TIME ###############\n")
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Time for %d containers\n", numContainers)
-			internal.GetCheckpointTimeSequential(ctx, clientset, numContainers, db)
+			internal.GetCheckpointTimeSequential(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset)
+		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 	}
 
@@ -127,10 +158,10 @@ func main() {
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Restore time for %d containers\n", numContainers)
-			internal.GetRestoreTime(ctx, clientset, numContainers, db)
+			internal.GetRestoreTime(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset)
+		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	}
 
 	fmt.Printf("############### DOCKER IMAGE SIZE ###############\n")
@@ -140,10 +171,10 @@ func main() {
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Docker image size for %d containers\n", numContainers)
-			internal.GetCheckpointImageRestoreSize(ctx, clientset, numContainers, db)
+			internal.GetCheckpointImageRestoreSize(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset)
+		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	}
 
 	fmt.Printf("############### TOTAL TIME ###############\n")
@@ -152,10 +183,10 @@ func main() {
 		fmt.Printf("Repetition %d\n", i)
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Total times for %d containers\n", numContainers)
-			internal.GetTimeDirectVsTriangularized(ctx, clientset, numContainers, db, "triangularized")
+			internal.GetTimeDirectVsTriangularized(ctx, clientset, numContainers, db, "triangularized", namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset)
+		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	}
 
 	fmt.Printf("############### DIFFERENCE TIME ###############\n")
@@ -164,14 +195,14 @@ func main() {
 		fmt.Printf("Repetition %d\n", i)
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Difference times for %d containers\n", numContainers)
-			internal.GetTimeDirectVsTriangularized(ctx, clientset, numContainers, db, "direct")
+			internal.GetTimeDirectVsTriangularized(ctx, clientset, numContainers, db, "direct", namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset)
+		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 	}
 
-	internal.DeletePodsStartingWithTest(ctx, clientset)
+	internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 	// Command to call the Python program
 	cmd := exec.Command("python", "graphs.py")
@@ -179,7 +210,7 @@ func main() {
 	// Run the command and capture the output
 	output, err := cmd.Output()
 	if err != nil {
-		fmt.Println("Error:", err)
+		logger.Errorf("Error: %s", err)
 		return
 	}
 
