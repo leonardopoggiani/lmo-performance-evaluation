@@ -78,7 +78,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 		return
 	}
 
-	fmt.Printf("Files count => %d", files)
+	fmt.Printf("Files count => %d \n", files)
 
 	start := time.Now()
 
