@@ -142,7 +142,7 @@ func sender(namespace string) {
 			fmt.Println("Checkpointing completed")
 		}
 
-		err = reconciler.TerminateCheckpointedPod(ctx, pod.Name, clientset)
+		err = reconciler.TerminateCheckpointedPod(ctx, pod.Name, clientset, namespace)
 		if err != nil {
 			fmt.Println(err.Error())
 			return
