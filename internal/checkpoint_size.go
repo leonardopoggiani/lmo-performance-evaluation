@@ -76,9 +76,12 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 			logger.Error(err.Error())
 			return err
 		}
+		if info.IsDir() {
+			logger.Infof("Found a dir, skipping..")
+			return nil
+		}
 		if !info.Mode().IsRegular() {
-			logger.Info("Non-regular file:", path)
-			logger.Error("Not a regular file")
+			logger.Errorf("Not a regular file: %s", info.Name())
 			return nil
 		}
 		size += info.Size()

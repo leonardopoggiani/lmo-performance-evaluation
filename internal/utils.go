@@ -123,7 +123,7 @@ func SaveToDB(ctx context.Context, conn *pgx.Conn, numContainers int64, size flo
 	logger := log.New(os.Stderr).WithColor()
 
 	// Prepare the SQL statement
-	stmt, err := conn.Prepare(ctx, "insert", "INSERT INTO (containers, size, checkpoint_type) VALUES ($1, $2, $3)")
+	stmt, err := conn.Prepare(ctx, "insert", "INSERT INTO (containers, size, checkpoint_type) VALUES (?, ?, ?)")
 	if err != nil {
 		logger.Error(err)
 		return
