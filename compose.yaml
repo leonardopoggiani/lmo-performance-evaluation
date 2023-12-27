@@ -6,6 +6,8 @@ services:
       POSTGRES_PASSWORD: secret-password
       POSTGRES_USER: postgres
       POSTGRES_DB: performance
+    volumes:
+      - db-data:/var/lib/postgresql/data
     ports:
       - 25432:5432
   db-client:
@@ -28,3 +30,6 @@ services:
       - $HOME/.kube/config:/root/.kube/config  
     depends_on:
       - db
+
+volumes:
+  db-data:

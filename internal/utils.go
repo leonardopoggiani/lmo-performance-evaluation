@@ -119,22 +119,41 @@ func CreateTable(ctx context.Context, conn *pgx.Conn, tableName string, columns 
 	fmt.Printf("Table %s created or already exists.\n", tableName)
 }
 
-func SaveToDB(ctx context.Context, conn *pgx.Conn, numContainers int64, size float64, checkpointType string, tableName string) {
+func SaveToDB(
+	ctx context.Context,
+	conn *pgx.Conn,
+	numContainers int64,
+	size float64,
+	checkpointType string,
+	tableName string,
+	column1 string,
+	column2 string) {
+
 	logger := log.New(os.Stderr).WithColor()
 
+	normalizedNumContainers := strconv.FormatInt(numContainers, 10)
+	normalizedSize := strconv.FormatFloat(size, 'f', -1, 32)
+
+	sql := fmt.Sprintf("INSERT INTO %s (%s, %s, %s) VALUES ($1, $2, $3)", tableName, column1, column2, "checkpoint_type")
 	// Prepare the SQL statement
-	stmt, err := conn.Prepare(ctx, "insert", "INSERT INTO (containers, size, checkpoint_type) VALUES (?, ?, ?)")
+	statement_name := fmt.Sprintf("statement-%d", rand.Intn(4000)+1000)
+
+	stmt, err := conn.Prepare(ctx, statement_name, sql)
+	if err != nil {
+		logger.Error(err)
+		logger.Error(stmt.SQL)
+		return
+	}
+
+	logger.Info("Inserting data, query: " + stmt.SQL)
+
+	// Execute the prepared statement
+	_, err = conn.Exec(ctx, stmt.SQL, normalizedNumContainers, normalizedSize, checkpointType)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
 
-	// Execute the prepared statement
-	_, err = conn.Exec(ctx, stmt.SQL, numContainers, size, checkpointType)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
 	fmt.Println("Data inserted successfully.")
 }
 
