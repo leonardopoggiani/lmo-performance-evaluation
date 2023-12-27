@@ -27,7 +27,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 

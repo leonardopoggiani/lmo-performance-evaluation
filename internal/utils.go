@@ -145,7 +145,7 @@ func CountFilesInFolder(folderPath string) (int, error) {
 
 	err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error(err.Error())
 			return err
 		}
 		if !info.Mode().IsRegular() {

@@ -26,7 +26,7 @@ func GetCheckpointTimeSequential(ctx context.Context, clientset *kubernetes.Clie
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
@@ -78,13 +78,13 @@ func GetCheckpointTimeSequential(ctx context.Context, clientset *kubernetes.Clie
 	directory := "/tmp/checkpoints/checkpoints"
 	if _, err := exec.Command("sudo", "rm", "-rf", directory+"/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
 	if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
@@ -100,7 +100,7 @@ func GetCheckpointTimePipelined(ctx context.Context, clientset *kubernetes.Clien
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
@@ -151,13 +151,13 @@ func GetCheckpointTimePipelined(ctx context.Context, clientset *kubernetes.Clien
 	directory := "/tmp/checkpoints/checkpoints"
 	if _, err := exec.Command("sudo", "rm", "-rf", directory+"/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
 	if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 

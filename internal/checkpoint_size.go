@@ -26,11 +26,11 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
-	fmt.Printf("Pod %s is ready\n", pod.Name)
+	logger.Infof("Pod %s is ready\n", pod.Name)
 
 	// Create a slice of Container structs
 	var containers []types.Container
@@ -38,7 +38,7 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 	// Append the container ID and name for each container in each pod
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		logger.Errorf(err.Error())
+		logger.Error(err.Error())
 		CleanUp(ctx, clientset, pod, namespace)
 		return
 	}
@@ -47,7 +47,7 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 		for _, containerStatus := range pod.Status.ContainerStatuses {
 			idParts := strings.Split(containerStatus.ContainerID, "//")
 			if len(idParts) < 2 {
-				fmt.Println("Malformed container ID")
+				logger.Errorf("Malformed container ID %s", idParts)
 				return
 			}
 			containerID := idParts[1]
@@ -63,7 +63,7 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 	err = controllers.CheckpointPodPipelined(containers, namespace, pod.Name)
 	if err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
@@ -73,43 +73,45 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 	err = filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			CleanUp(ctx, clientset, pod, namespace)
-			fmt.Println(err.Error())
+			logger.Error(err.Error())
 			return err
 		}
 		if !info.Mode().IsRegular() {
-			fmt.Println("Not a regular file")
+			logger.Info("Non-regular file:", path)
+			logger.Error("Not a regular file")
 			return nil
 		}
 		size += info.Size()
 		return nil
 	})
+
 	if err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
 	sizeInMB := float64(size) / (1024 * 1024)
-	fmt.Printf("The size of %s is %.2f MB.\n", directory, sizeInMB)
+	logger.Infof("The size of %s is %.2f MB.\n", directory, sizeInMB)
 	SaveToDB(ctx, db, int64(numContainers), sizeInMB, "pipelined", "checkpoint_sizes")
 
 	// delete checkpoints folder
 	if _, err := exec.Command("sudo", "rm", "-f", directory+"/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
 	if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
 	// check that checkpoints folder is empty
 	if output, err := exec.Command("sudo", "ls", directory).Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	} else {
 		fmt.Printf("Output: %s\n", output)
@@ -128,7 +130,7 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
@@ -174,7 +176,7 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 
 	err = filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error(err.Error())
 			CleanUp(ctx, clientset, pod, namespace)
 			return err
 		}
@@ -187,7 +189,7 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 	})
 	if err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
@@ -198,20 +200,20 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 	// delete checkpoints folder
 	if _, err := exec.Command("sudo", "rm", "-f", directory+"/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
 	if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
 	// check that checkpoints folder is empty
 	if output, err := exec.Command("sudo", "ls", directory).Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	} else {
 		fmt.Printf("Output: %s\n", output)

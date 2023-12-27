@@ -26,7 +26,7 @@ func GetCheckpointImageRestoreSize(ctx context.Context, clientset *kubernetes.Cl
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
@@ -85,14 +85,14 @@ func GetCheckpointImageRestoreSize(ctx context.Context, clientset *kubernetes.Cl
 	// delete checkpoints folder
 	if _, err := exec.Command("sudo", "rm", "-f", directory+"/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
 	// check that checkpoints folder is empty
 	if output, err := exec.Command("sudo", "ls", directory).Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 		return
 	} else {
 		fmt.Printf("Output: %s\n", output)

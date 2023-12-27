@@ -174,7 +174,7 @@ func receiver(namespace string) {
 
 			pod, err := reconciler.BuildahRestore(ctx, directory, clientset)
 			if err != nil {
-				fmt.Println(err.Error())
+				logger.Error(err.Error())
 				os.Exit(1) // Terminate the process with a non-zero exit code
 			} else {
 				fmt.Println("Pod restored")
@@ -187,7 +187,7 @@ func receiver(namespace string) {
 				// Insert the time measurement into the database
 				_, err = db.Exec("INSERT INTO time_measurements (mode, start_time, end_time, elapsed_time) VALUES (?, ?, ?, ?)", "sequential_restore", start, time.Now(), elapsed.Milliseconds())
 				if err != nil {
-					fmt.Println(err.Error())
+					logger.Error(err.Error())
 				}
 
 				internal.DeletePodsStartingWithTest(ctx, clientset, pod.Namespace)
@@ -196,12 +196,12 @@ func receiver(namespace string) {
 			/// delete checkpoints folder
 			if _, err := exec.Command("sudo", "rm", "-rf", directory).Output(); err != nil {
 				fmt.Println("Delete checkpoints failed")
-				fmt.Println(err.Error())
+				logger.Error(err.Error())
 				return
 			}
 
 			if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
-				fmt.Println(err.Error())
+				logger.Error(err.Error())
 				return
 			}
 

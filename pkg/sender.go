@@ -106,7 +106,7 @@ func sender(namespace string) {
 		// Append the container ID and name for each container in each pod
 		pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error(err.Error())
 			return
 		}
 
@@ -136,7 +136,7 @@ func sender(namespace string) {
 
 		err = reconciler.CheckpointPodCrio(containers, namespace, pod.Name)
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error(err.Error())
 			return
 		} else {
 			fmt.Println("Checkpointing completed")
@@ -144,7 +144,7 @@ func sender(namespace string) {
 
 		err = reconciler.TerminateCheckpointedPod(ctx, pod.Name, clientset, namespace)
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error(err.Error())
 			return
 		} else {
 			fmt.Println("Pod terminated")
@@ -168,7 +168,7 @@ func sender(namespace string) {
 
 		err = reconciler.MigrateCheckpoint(ctx, directory, clientset)
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error(err.Error())
 			return
 		} else {
 			fmt.Println("Migration completed")
@@ -176,14 +176,14 @@ func sender(namespace string) {
 
 		// delete checkpoints folder
 		if _, err := exec.Command("sudo", "rm", "-rf", directory+"/").Output(); err != nil {
-			fmt.Println(err.Error())
+			logger.Error(err.Error())
 			return
 		} else {
 			fmt.Println("Checkpoints folder deleted")
 		}
 
 		if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
-			fmt.Println(err.Error())
+			logger.Error(err.Error())
 			return
 		} else {
 			fmt.Println("Checkpoints folder created")
