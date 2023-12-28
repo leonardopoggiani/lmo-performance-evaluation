@@ -99,9 +99,10 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 	SaveToDB(ctx, db, int64(numContainers), sizeInMB, "pipelined", "checkpoint_sizes", "containers", "size")
 
 	// delete checkpoints folder
-	if _, err := exec.Command("sudo", "rm", "-f", directory+"/").Output(); err != nil {
+	if _, err := exec.Command("sudo", "rm", "-f", directory+"/*").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)
 		logger.Error(err.Error())
+		logger.Error("Failed to delete checkpoints folder, command: " + "sudo rm -f " + directory + "/*")
 		return
 	}
 
