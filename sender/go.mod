@@ -7,7 +7,9 @@ replace github.com/leonardopoggiani/performance-evaluation => ../
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
 
 require (
-	github.com/leonardopoggiani/live-migration-operator v0.0.0-20231228150635-0ccb3c3f1030
+	github.com/jackc/pgx/v5 v5.5.1
+	github.com/joho/godotenv v1.5.1
+	github.com/leonardopoggiani/live-migration-operator v0.0.0-20240106165636-beea89976a31
 	github.com/leonardopoggiani/performance-evaluation v0.0.0-00010101000000-000000000000
 	github.com/withmandala/go-log v0.1.0
 	k8s.io/api v0.29.0
@@ -38,7 +40,6 @@ require (
 	github.com/imdario/mergo v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect
-	github.com/jackc/pgx/v5 v5.5.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect

@@ -19,6 +19,7 @@ import (
 	pkg "github.com/leonardopoggiani/performance-evaluation/pkg"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/withmandala/go-log"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -145,6 +146,17 @@ func main() {
 	reconciler := controllers.LiveMigrationReconciler{}
 	namespace := os.Getenv("NAMESPACE")
 
+	nsName := &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+		},
+	}
+
+	_, err = clientset.CoreV1().Namespaces().Create(context.Background(), nsName, metav1.CreateOptions{})
+	if err != nil {
+		fmt.Printf("Failed to create namespace %s for error: %s \n", namespace, err)
+	}
+
 	// Check if the pod exists
 	_, err = clientset.CoreV1().Pods(namespace).Get(ctx, "dummy=pod", metav1.GetOptions{})
 	if err == nil {
@@ -152,13 +164,13 @@ func main() {
 		_ = utils.WaitForPodDeletion(ctx, "dummy-pod", namespace, clientset)
 	}
 
-	err = dummy.CreateDummyPod(clientset, ctx)
+	err = dummy.CreateDummyPod(clientset, ctx, namespace)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return
 	}
 
-	err = dummy.CreateDummyService(clientset, ctx)
+	err = dummy.CreateDummyService(clientset, ctx, namespace)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return

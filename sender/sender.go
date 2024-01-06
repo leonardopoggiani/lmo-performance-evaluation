@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 	"github.com/leonardopoggiani/live-migration-operator/controllers"
 	"github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	pkg "github.com/leonardopoggiani/performance-evaluation/pkg"
@@ -58,6 +60,16 @@ func main() {
 
 	logger.Infof("Sender program, sending migration request")
 
+	ctx := context.Background()
+	godotenv.Load(".env")
+
+	db, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		logger.Errorf("Unable to connect to database: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close(ctx)
+
 	kubeconfigPath := os.Getenv("KUBECONFIG")
 	if kubeconfigPath == "" {
 		kubeconfigPath = "~/.kube/config"
@@ -81,7 +93,6 @@ func main() {
 		return
 	}
 
-	ctx := context.Background()
 	namespace := os.Getenv("NAMESPACE")
 
 	err = pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
@@ -176,7 +187,7 @@ func main() {
 			}
 		}
 
-		err = reconciler.MigrateCheckpoint(ctx, directory, clientset)
+		err = reconciler.MigrateCheckpoint(ctx, directory, clientset, namespace)
 		if err != nil {
 			logger.Error(err.Error())
 			return

@@ -10,7 +10,7 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/jackc/pgx/v5 v5.5.1
 	github.com/joho/godotenv v1.5.1
-	github.com/leonardopoggiani/live-migration-operator v0.0.0-20231228150635-0ccb3c3f1030
+	github.com/leonardopoggiani/live-migration-operator v0.0.0-20240106165636-beea89976a31
 	github.com/leonardopoggiani/performance-evaluation v0.0.0-00010101000000-000000000000
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/withmandala/go-log v0.1.0

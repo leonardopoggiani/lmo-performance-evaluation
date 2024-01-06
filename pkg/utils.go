@@ -170,7 +170,7 @@ func SaveTimeToDB(
 
 	normalizedTime := strconv.FormatFloat(time, 'f', -1, 32)
 
-	sql := fmt.Sprintf("INSERT INTO %s (%s, %s) VALUES ($1, $@)", tableName, column1, column2, "checkpoint_type")
+	sql := fmt.Sprintf("INSERT INTO %s (%s, %s, %s) VALUES ($1, $2, $3)", tableName, column1, column2, "checkpoint_type")
 	// Prepare the SQL statement
 	statement_name := fmt.Sprintf("statement-%d", rand.Intn(4000)+1000)
 

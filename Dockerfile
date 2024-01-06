@@ -3,8 +3,9 @@ WORKDIR /app
 
 COPY go.mod ./go.mod
 COPY main.go ./main.go
-COPY internal ./internal
 COPY pkg ./pkg
+COPY receiver ./receiver
+COPY sender ./sender
 
 RUN go mod tidy 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags containers_image_openpgp -a -installsuffix cgo -o ./bin/performance-evaluation .
