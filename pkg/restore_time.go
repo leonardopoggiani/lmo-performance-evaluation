@@ -82,7 +82,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 
 	start := time.Now()
 
-	pod, err = reconciler.BuildahRestore(ctx, "/tmp/checkpoints/checkpoints", clientset)
+	pod, err = reconciler.BuildahRestore(ctx, "/tmp/checkpoints/checkpoints", clientset, namespace)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return
@@ -91,7 +91,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed sequential: ", elapsed)
 
-	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "sequential", "restore_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "sequential", "restore_times", "containers", "elapsed")
 
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {
@@ -101,7 +101,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	CleanUp(ctx, clientset, pod, namespace)
 	start = time.Now()
 
-	pod, err = reconciler.BuildahRestorePipelined(ctx, "/tmp/checkpoints/checkpoints", clientset)
+	pod, err = reconciler.BuildahRestorePipelined(ctx, "/tmp/checkpoints/checkpoints", clientset, namespace)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return
@@ -110,7 +110,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	elapsed = time.Since(start)
 	fmt.Println("Elapsed pipelined: ", elapsed)
 
-	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "pipelined", "restore_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "pipelined", "restore_times", "containers", "elapsed")
 
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {
@@ -121,7 +121,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 
 	start = time.Now()
 
-	pod, err = reconciler.BuildahRestoreParallelized(ctx, "/tmp/checkpoints/checkpoints", clientset)
+	pod, err = reconciler.BuildahRestoreParallelized(ctx, "/tmp/checkpoints/checkpoints", clientset, namespace)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return
@@ -131,7 +131,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	elapsed = time.Since(start)
 	fmt.Println("Elapsed parallel: ", elapsed)
 
-	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "parallelized", "restore_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "parallelized", "restore_times", "containers", "elapsed")
 
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {

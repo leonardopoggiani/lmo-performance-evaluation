@@ -1,15 +1,15 @@
-package pkg
+package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/leonardopoggiani/live-migration-operator/controllers"
 	"github.com/leonardopoggiani/live-migration-operator/controllers/types"
-	internal "github.com/leonardopoggiani/performance-evaluation/internal"
+	pkg "github.com/leonardopoggiani/performance-evaluation/pkg"
 	"github.com/withmandala/go-log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,33 +32,32 @@ func waitForServiceCreation(clientset *kubernetes.Clientset, ctx context.Context
 		select {
 		case event, ok := <-watcher.ResultChan():
 			if !ok {
-				fmt.Println("Watcher channel closed")
+				logger.Info("Watcher channel closed")
 				return
 			}
 			if event.Type == watch.Added {
 				service, ok := event.Object.(*v1.Service)
 				if !ok {
-					fmt.Println("Error casting service object")
+					logger.Error("Error casting service object")
 					return
 				}
 				if service.Name == "dummy-service" {
-					fmt.Println("Service dummy-service created")
+					logger.Info("Service dummy-service created")
 					return
 				}
 			}
 		case <-ctx.Done():
-			fmt.Println("Context done")
+			logger.Info("Context done")
 			return
 		}
 	}
 }
 
-func sender(namespace string) {
+func main() {
 	logger := log.New(os.Stderr).WithColor()
 
 	logger.Infof("Sender program, sending migration request")
 
-	// Load Kubernetes config
 	kubeconfigPath := os.Getenv("KUBECONFIG")
 	if kubeconfigPath == "" {
 		kubeconfigPath = "~/.kube/config"
@@ -66,44 +65,56 @@ func sender(namespace string) {
 
 	kubeconfigPath = os.ExpandEnv(kubeconfigPath)
 	if _, err := os.Stat(kubeconfigPath); os.IsNotExist(err) {
-		fmt.Println("Kubeconfig file not found")
+		logger.Error("Kubeconfig file not found")
 		return
 	}
 
 	kubeconfig, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
-		logger.Errorf("Error loading kubeconfig")
+		logger.Error("Error loading kubeconfig")
 		return
 	}
 
-	// Create Kubernetes API client
 	clientset, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
-		logger.Errorf("Error creating kubernetes client")
+		logger.Error("Error creating kubernetes client")
 		return
 	}
 
 	ctx := context.Background()
+	namespace := os.Getenv("NAMESPACE")
 
-	fmt.Println("Kubeconfig file not found")
+	err = pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
+	if err != nil {
+		logger.Error("Error deleting pods starting with test-")
+		return
+	}
 
-	internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	waitForServiceCreation(clientset, ctx)
 
 	reconciler := controllers.LiveMigrationReconciler{}
 
-	// once created the dummy pod and correctly offloaded, i can create a pod to migrate
-	repetitions := 1
-	numContainers := 1
+	repetitions := os.Getenv("REPETITIONS")
+	containers := os.Getenv("NUM_CONTAINERS")
 
-	for j := 0; j <= repetitions-1; j++ {
-		fmt.Printf("Repetitions %d \n", j)
-		pod := internal.CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+	numRepetitions, err := strconv.Atoi(repetitions)
+	if err != nil {
+		logger.Error("Error covnerting with Atoi")
+		return
+	}
 
-		// Create a slice of Container structs
+	numContainers, err := strconv.Atoi(containers)
+	if err != nil {
+		logger.Error("Error covnerting with Atoi")
+		return
+	}
+
+	for j := 0; j <= numRepetitions-1; j++ {
+		logger.Infof("Repetitions %d \n", j)
+		pod := pkg.CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+
 		var containers []types.Container
 
-		// Append the container ID and name for each container in each pod
 		pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			logger.Error(err.Error())
@@ -114,11 +125,11 @@ func sender(namespace string) {
 			for _, containerStatus := range pod.Status.ContainerStatuses {
 				idParts := strings.Split(containerStatus.ContainerID, "//")
 
-				fmt.Println("containerStatus.ContainerID: " + containerStatus.ContainerID)
-				fmt.Println("containerStatus.Name: " + containerStatus.Name)
+				logger.Info("containerStatus.ContainerID: " + containerStatus.ContainerID)
+				logger.Info("containerStatus.Name: " + containerStatus.Name)
 
 				if len(idParts) < 2 {
-					fmt.Println("Malformed container ID")
+					logger.Error("Malformed container ID")
 					return
 				}
 				containerID := idParts[1]
@@ -131,15 +142,14 @@ func sender(namespace string) {
 			}
 		}
 
-		fmt.Println("Checkpointing pod")
-		fmt.Println("pod.Name: " + pod.Name)
+		logger.Info("Checkpointing pod %s", pod.Name)
 
 		err = reconciler.CheckpointPodCrio(containers, namespace, pod.Name)
 		if err != nil {
 			logger.Error(err.Error())
 			return
 		} else {
-			fmt.Println("Checkpointing completed")
+			logger.Info("Checkpointing completed")
 		}
 
 		err = reconciler.TerminateCheckpointedPod(ctx, pod.Name, clientset, namespace)
@@ -147,22 +157,22 @@ func sender(namespace string) {
 			logger.Error(err.Error())
 			return
 		} else {
-			fmt.Println("Pod terminated")
+			logger.Info("Pod terminated")
 		}
 
-		directory := "/tmp/checkpoints/checkpoints/"
+		directory := os.Getenv("CHECKPOINTS_FOLDER")
 
 		files, err := os.ReadDir(directory)
 		if err != nil {
-			fmt.Printf("Error reading directory: %v\n", err)
+			logger.Errorf("Error reading directory: %v\n", err)
 			return
 		}
 
 		for _, file := range files {
 			if file.IsDir() {
-				fmt.Printf("Directory: %s\n", file.Name())
+				logger.Infof("Directory: %s\n", file.Name())
 			} else {
-				fmt.Printf("File: %s\n", file.Name())
+				logger.Infof("File: %s\n", file.Name())
 			}
 		}
 
@@ -171,24 +181,23 @@ func sender(namespace string) {
 			logger.Error(err.Error())
 			return
 		} else {
-			fmt.Println("Migration completed")
+			logger.Info("Migration completed")
 		}
 
-		// delete checkpoints folder
 		if _, err := exec.Command("sudo", "rm", "-rf", directory+"/").Output(); err != nil {
 			logger.Error(err.Error())
 			return
 		} else {
-			fmt.Println("Checkpoints folder deleted")
+			logger.Info("Checkpoints folder deleted")
 		}
 
 		if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
 			logger.Error(err.Error())
 			return
 		} else {
-			fmt.Println("Checkpoints folder created")
+			logger.Info("Checkpoints folder created")
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+		pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	}
 }

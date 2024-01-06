@@ -10,8 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
-	internal "github.com/leonardopoggiani/performance-evaluation/internal"
-	_ "github.com/leonardopoggiani/performance-evaluation/pkg"
+	pkg "github.com/leonardopoggiani/lmo-performance-evaluation/pkg"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/withmandala/go-log"
 	v1 "k8s.io/api/core/v1"
@@ -37,11 +36,11 @@ func main() {
 	}
 	defer db.Close(context.Background())
 
-	internal.CreateTable(ctx, db, "checkpoint_sizes", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, size FLOAT, checkpoint_type TEXT")
-	internal.CreateTable(ctx, db, "checkpoint_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
-	internal.CreateTable(ctx, db, "restore_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
-	internal.CreateTable(ctx, db, "docker_sizes", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
-	internal.CreateTable(ctx, db, "total_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+	pkg.CreateTable(ctx, db, "checkpoint_sizes", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, size FLOAT, checkpoint_type TEXT")
+	pkg.CreateTable(ctx, db, "checkpoint_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+	pkg.CreateTable(ctx, db, "restore_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+	pkg.CreateTable(ctx, db, "docker_sizes", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+	pkg.CreateTable(ctx, db, "total_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
 
 	// Load Kubernetes config
 	kubeconfigPath := os.Getenv("KUBECONFIG")
@@ -113,19 +112,19 @@ func main() {
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Size for %d containers\n", numContainers)
-			internal.GetCheckpointSizePipelined(ctx, clientset, numContainers, db, namespace)
+			pkg.GetCheckpointSizePipelined(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+		pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 		fmt.Printf("############### CHECKPOINT TIME ###############\n")
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Time for %d containers\n", numContainers)
-			internal.GetCheckpointTimePipelined(ctx, clientset, numContainers, db, namespace)
+			pkg.GetCheckpointTimePipelined(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+		pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 	}
 
@@ -135,19 +134,19 @@ func main() {
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Size for %d containers\n", numContainers)
-			internal.GetCheckpointSizeSequential(ctx, clientset, numContainers, db, namespace)
+			pkg.GetCheckpointSizeSequential(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+		pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 		fmt.Printf("############### CHECKPOINT TIME ###############\n")
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Time for %d containers\n", numContainers)
-			internal.GetCheckpointTimeSequential(ctx, clientset, numContainers, db, namespace)
+			pkg.GetCheckpointTimeSequential(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+		pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 	}
 
@@ -158,10 +157,10 @@ func main() {
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Restore time for %d containers\n", numContainers)
-			internal.GetRestoreTime(ctx, clientset, numContainers, db, namespace)
+			pkg.GetRestoreTime(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+		pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	}
 
 	fmt.Printf("############### DOCKER IMAGE SIZE ###############\n")
@@ -171,10 +170,10 @@ func main() {
 
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Docker image size for %d containers\n", numContainers)
-			internal.GetCheckpointImageRestoreSize(ctx, clientset, numContainers, db, namespace)
+			pkg.GetCheckpointImageRestoreSize(ctx, clientset, numContainers, db, namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+		pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	}
 
 	fmt.Printf("############### TOTAL TIME ###############\n")
@@ -183,10 +182,10 @@ func main() {
 		fmt.Printf("Repetition %d\n", i)
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Total times for %d containers\n", numContainers)
-			internal.GetTimeDirectVsTriangularized(ctx, clientset, numContainers, db, "triangularized", namespace)
+			pkg.GetTimeDirectVsTriangularized(ctx, clientset, numContainers, db, "triangularized", namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+		pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 	}
 
 	fmt.Printf("############### DIFFERENCE TIME ###############\n")
@@ -195,14 +194,14 @@ func main() {
 		fmt.Printf("Repetition %d\n", i)
 		for _, numContainers := range containerCounts {
 			fmt.Printf("Difference times for %d containers\n", numContainers)
-			internal.GetTimeDirectVsTriangularized(ctx, clientset, numContainers, db, "direct", namespace)
+			pkg.GetTimeDirectVsTriangularized(ctx, clientset, numContainers, db, "direct", namespace)
 		}
 
-		internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+		pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 	}
 
-	internal.DeletePodsStartingWithTest(ctx, clientset, namespace)
+	pkg.DeletePodsStartingWithTest(ctx, clientset, namespace)
 
 	// Command to call the Python program
 	cmd := exec.Command("python", "graphs.py")

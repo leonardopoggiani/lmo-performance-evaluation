@@ -70,7 +70,7 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 
 	CleanUp(ctx, clientset, pod, namespace)
 
-	pod, err = reconciler.BuildahRestore(ctx, "/tmp/checkpoints/checkpoints", clientset)
+	pod, err = reconciler.BuildahRestore(ctx, "/tmp/checkpoints/checkpoints", clientset, namespace)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return
@@ -125,5 +125,5 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 	elapsed := time.Since(start)
 	fmt.Printf("Time to checkpoint and restore %d containers: %s\n", numContainers, elapsed)
 
-	SaveToDB(ctx, db, int64(numContainers), elapsed.Seconds(), exchange, "total_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, elapsed.Seconds(), exchange, "total_times", "containers", "elapsed")
 }

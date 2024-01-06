@@ -119,10 +119,10 @@ func CreateTable(ctx context.Context, conn *pgx.Conn, tableName string, columns 
 	fmt.Printf("Table %s created or already exists.\n", tableName)
 }
 
-func SaveToDB(
+func SaveSizeToDB(
 	ctx context.Context,
 	conn *pgx.Conn,
-	numContainers int64,
+	numContainers int,
 	size float64,
 	checkpointType string,
 	tableName string,
@@ -131,7 +131,6 @@ func SaveToDB(
 
 	logger := log.New(os.Stderr).WithColor()
 
-	normalizedNumContainers := strconv.FormatInt(numContainers, 10)
 	normalizedSize := strconv.FormatFloat(size, 'f', -1, 32)
 
 	sql := fmt.Sprintf("INSERT INTO %s (%s, %s, %s) VALUES ($1, $2, $3)", tableName, column1, column2, "checkpoint_type")
@@ -148,13 +147,50 @@ func SaveToDB(
 	logger.Info("Inserting data, query: " + stmt.SQL)
 
 	// Execute the prepared statement
-	_, err = conn.Exec(ctx, stmt.SQL, normalizedNumContainers, normalizedSize, checkpointType)
+	_, err = conn.Exec(ctx, stmt.SQL, numContainers, normalizedSize, checkpointType)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
 
 	fmt.Println("Data inserted successfully.")
+}
+
+func SaveTimeToDB(
+	ctx context.Context,
+	conn *pgx.Conn,
+	numContainers int,
+	time float64,
+	checkpointType string,
+	tableName string,
+	column1 string,
+	column2 string) {
+
+	logger := log.New(os.Stderr).WithColor()
+
+	normalizedTime := strconv.FormatFloat(time, 'f', -1, 32)
+
+	sql := fmt.Sprintf("INSERT INTO %s (%s, %s) VALUES ($1, $@)", tableName, column1, column2, "checkpoint_type")
+	// Prepare the SQL statement
+	statement_name := fmt.Sprintf("statement-%d", rand.Intn(4000)+1000)
+
+	stmt, err := conn.Prepare(ctx, statement_name, sql)
+	if err != nil {
+		logger.Error(err)
+		logger.Error(stmt.SQL)
+		return
+	}
+
+	logger.Info("Inserting data, query: " + stmt.SQL)
+
+	// Execute the prepared statement
+	_, err = conn.Exec(ctx, stmt.SQL, numContainers, normalizedTime, checkpointType)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+
+	logger.Info("Data inserted successfully.")
 }
 
 func CountFilesInFolder(folderPath string) (int, error) {

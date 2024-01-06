@@ -96,7 +96,7 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 
 	sizeInMB := float64(size) / (1024 * 1024)
 	logger.Infof("The size of %s is %.2f MB.\n", directory, sizeInMB)
-	SaveToDB(ctx, db, int64(numContainers), sizeInMB, "pipelined", "checkpoint_sizes", "containers", "size")
+	SaveSizeToDB(ctx, db, numContainers, sizeInMB, "pipelined", "checkpoint_sizes", "containers", "size")
 
 	// delete checkpoints folder
 	if _, err := exec.Command("sudo", "rm", "-f", directory+"/*").Output(); err != nil {
@@ -199,7 +199,7 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 
 	sizeInMB := float64(size) / (1024 * 1024)
 	fmt.Printf("The size of %s is %.2f MB.\n", directory, sizeInMB)
-	SaveToDB(ctx, db, int64(numContainers), sizeInMB, "sequential", "checkpoint_sizes", "containers", "size")
+	SaveSizeToDB(ctx, db, numContainers, sizeInMB, "sequential", "checkpoint_sizes", "containers", "size")
 
 	// delete checkpoints folder
 	if _, err := exec.Command("sudo", "rm", "-f", directory+"/").Output(); err != nil {

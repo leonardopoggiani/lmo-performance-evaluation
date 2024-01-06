@@ -1,20 +1,22 @@
-package pkg
+package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
 	"github.com/leonardopoggiani/live-migration-operator/controllers/dummy"
 	"github.com/leonardopoggiani/live-migration-operator/controllers/utils"
-	internal "github.com/leonardopoggiani/performance-evaluation/internal"
+	pkg "github.com/leonardopoggiani/performance-evaluation/pkg"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/withmandala/go-log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,10 +24,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func waitForFile(timeout time.Duration) bool {
+func waitForFile(timeout time.Duration, path string) bool {
 	logger := log.New(os.Stderr).WithColor()
 
-	filePath := "/tmp/checkpoints/checkpoints/dummy"
+	filePath := path
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -44,7 +46,7 @@ func waitForFile(timeout time.Duration) bool {
 				}
 				if event.Op&fsnotify.Create == fsnotify.Create {
 					if filepath.Clean(event.Name) == filePath {
-						fmt.Println("File 'dummy' detected.")
+						logger.Info("File 'dummy' detected.")
 						done <- true
 					}
 				}
@@ -53,8 +55,6 @@ func waitForFile(timeout time.Duration) bool {
 					return
 				}
 				logger.Errorf("Error occurred in watcher: %v", err)
-			default:
-				// Continue executing other tasks or operations
 			}
 		}
 	}()
@@ -72,49 +72,50 @@ func waitForFile(timeout time.Duration) bool {
 	}
 }
 
-func deleteDummyPodAndService(ctx context.Context, clientset *kubernetes.Clientset) error {
+func deleteDummyPodAndService(ctx context.Context, clientset *kubernetes.Clientset, namespace string, podName string, serviceName string) error {
+	logger := log.New(os.Stderr).WithColor()
 
 	// Delete Pod
-	err := clientset.CoreV1().Pods("liqo-demo").Delete(ctx, "dummy-pod", metav1.DeleteOptions{})
+	err := clientset.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
 	if err != nil {
-		return fmt.Errorf("error deleting pod: %v", err)
+		logger.Errorf("error deleting pod: %v", err)
+		return err
 	}
 
 	// Delete Service
-	err = clientset.CoreV1().Services("liqo-demo").Delete(ctx, "dummy-service", metav1.DeleteOptions{})
+	err = clientset.CoreV1().Services(namespace).Delete(ctx, serviceName, metav1.DeleteOptions{})
 	if err != nil {
-		return fmt.Errorf("error deleting service: %v", err)
+		logger.Errorf("error deleting service: %v", err)
+		return err
 	}
 
 	return nil
 }
 
-func receiver(namespace string) {
+func main() {
 	logger := log.New(os.Stderr).WithColor()
-
-	fmt.Println("Receiver program, waiting for migration request")
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	// Connect to the SQLite database
-	db, err := sql.Open("sqlite3", "performance.db")
-	if err != nil {
-		logger.Errorf(err.Error())
-	}
-	defer db.Close()
+	logger.Info("Receiver program started, waiting for migration request")
 
-	// Create the time_measurements table if it doesn't exist
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS time_measurements (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			mode TEXT,
-			start_time TIMESTAMP,
-			end_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			elapsed_time INTEGER
-		)
-	`)
+	// Use a context to cancel the loop that checks for sourcePod
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	godotenv.Load(".env")
+
+	db, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
-		logger.Errorf(err.Error())
+		logger.Errorf("Unable to connect to database: %v\n", err)
+		os.Exit(1)
 	}
+	defer db.Close(ctx)
+
+	pkg.CreateTable(ctx, db, "checkpoint_sizes", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, size FLOAT, checkpoint_type TEXT")
+	pkg.CreateTable(ctx, db, "checkpoint_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+	pkg.CreateTable(ctx, db, "restore_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+	pkg.CreateTable(ctx, db, "docker_sizes", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+	pkg.CreateTable(ctx, db, "total_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
 
 	// Load Kubernetes config
 	kubeconfigPath := os.Getenv("KUBECONFIG")
@@ -141,15 +142,14 @@ func receiver(namespace string) {
 		return
 	}
 
-	ctx := context.Background()
-
 	reconciler := controllers.LiveMigrationReconciler{}
+	namespace := os.Getenv("NAMESPACE")
 
 	// Check if the pod exists
-	_, err = clientset.CoreV1().Pods("liqo-demo").Get(ctx, "dummy=pod", metav1.GetOptions{})
+	_, err = clientset.CoreV1().Pods(namespace).Get(ctx, "dummy=pod", metav1.GetOptions{})
 	if err == nil {
-		_ = deleteDummyPodAndService(ctx, clientset)
-		_ = utils.WaitForPodDeletion(ctx, "dummy-pod", "liqo-demo", clientset)
+		_ = deleteDummyPodAndService(ctx, clientset, namespace, "dummy-pod", "dummy-service")
+		_ = utils.WaitForPodDeletion(ctx, "dummy-pod", namespace, clientset)
 	}
 
 	err = dummy.CreateDummyPod(clientset, ctx)
@@ -164,38 +164,42 @@ func receiver(namespace string) {
 		return
 	}
 
-	directory := "/tmp/checkpoints/checkpoints/"
+	directory := os.Getenv("CHECKPOINTS_FOLDER")
+	containers := os.Getenv("NUM_CONTAINERS")
+	numContainers, err := strconv.Atoi(containers)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return
+	}
 
 	for {
-		if waitForFile(21000 * time.Second) {
-			fmt.Println("File detected, restoring pod")
+		if waitForFile(21000*time.Second, directory) {
+			logger.Info("File detected, restoring pod")
 
 			start := time.Now()
 
-			pod, err := reconciler.BuildahRestore(ctx, directory, clientset)
+			pod, err := reconciler.BuildahRestore(ctx, directory, clientset, namespace)
 			if err != nil {
 				logger.Error(err.Error())
-				os.Exit(1) // Terminate the process with a non-zero exit code
+				os.Exit(1)
 			} else {
-				fmt.Println("Pod restored")
+				logger.Infof("Pod restored %s", pod.Name)
 
 				utils.WaitForContainerReady(pod.Name, namespace, pod.Spec.Containers[0].Name, clientset)
 
 				elapsed := time.Since(start)
-				fmt.Printf("[MEASURE] Checkpointing took %d\n", elapsed.Milliseconds())
+				logger.Infof("[MEASURE] Checkpointing took %d\n", elapsed.Milliseconds())
 
-				// Insert the time measurement into the database
-				_, err = db.Exec("INSERT INTO time_measurements (mode, start_time, end_time, elapsed_time) VALUES (?, ?, ?, ?)", "sequential_restore", start, time.Now(), elapsed.Milliseconds())
+				pkg.SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "restore", "restore_times", "containers", "elapsed")
 				if err != nil {
 					logger.Error(err.Error())
 				}
 
-				internal.DeletePodsStartingWithTest(ctx, clientset, pod.Namespace)
+				pkg.DeletePodsStartingWithTest(ctx, clientset, pod.Namespace)
 			}
 
-			/// delete checkpoints folder
 			if _, err := exec.Command("sudo", "rm", "-rf", directory).Output(); err != nil {
-				fmt.Println("Delete checkpoints failed")
+				logger.Error("Delete checkpoints failed")
 				logger.Error(err.Error())
 				return
 			}
@@ -206,7 +210,7 @@ func receiver(namespace string) {
 			}
 
 		} else {
-			fmt.Println("Timeout: File not detected.")
+			logger.Error("Timeout: File not detected.")
 			os.Exit(1)
 		}
 	}

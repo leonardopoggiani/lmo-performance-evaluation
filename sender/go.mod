@@ -1,12 +1,14 @@
-module github.com/leonardopoggiani/lmo-performance-evaluation
+module github.com/leonardopoggiani/sender
 
 go 1.21.4
 
+replace github.com/leonardopoggiani/performance-evaluation => ../
+
+replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
+
 require (
-	github.com/jackc/pgx/v5 v5.5.1
-	github.com/joho/godotenv v1.5.1
 	github.com/leonardopoggiani/live-migration-operator v0.0.0-20231228150635-0ccb3c3f1030
-	github.com/mattn/go-sqlite3 v1.14.19
+	github.com/leonardopoggiani/performance-evaluation v0.0.0-00010101000000-000000000000
 	github.com/withmandala/go-log v0.1.0
 	k8s.io/api v0.29.0
 	k8s.io/apimachinery v0.29.0
@@ -32,11 +34,14 @@ require (
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.5.0 // indirect
+	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/imdario/mergo v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect
+	github.com/jackc/pgx/v5 v5.5.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -47,7 +52,7 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
-	github.com/smartystreets/goconvey v1.8.1 // indirect
+	github.com/smarty/assertions v1.15.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc // indirect
@@ -73,5 +78,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16

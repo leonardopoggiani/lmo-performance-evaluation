@@ -72,7 +72,7 @@ func GetCheckpointTimeSequential(ctx context.Context, clientset *kubernetes.Clie
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed sequential: ", elapsed)
 
-	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "sequential", "checkpoint_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "sequential", "checkpoint_times", "containers", "elapsed")
 
 	// delete checkpoint folder
 	directory := "/tmp/checkpoints/checkpoints"
@@ -145,7 +145,7 @@ func GetCheckpointTimePipelined(ctx context.Context, clientset *kubernetes.Clien
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed pipelined: ", elapsed)
 
-	SaveToDB(ctx, db, int64(numContainers), float64(elapsed.Milliseconds()), "pipelined", "checkpoint_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "pipelined", "checkpoint_times", "containers", "elapsed")
 
 	// delete checkpoint folder
 	directory := "/tmp/checkpoints/checkpoints"
