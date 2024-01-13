@@ -32,16 +32,35 @@ func CreateTestContainers(ctx context.Context, numContainers int, clientset *kub
 	for i := 0; i < numContainers; i++ {
 		fmt.Println("Creating container: " + fmt.Sprintf("container-%d", i))
 
-		container := v1.Container{
-			Name:            fmt.Sprintf("container-%d", i),
-			Image:           "docker.io/library/tomcat:latest",
-			ImagePullPolicy: v1.PullPolicy("IfNotPresent"),
-			Ports: []v1.ContainerPort{
-				{
-					ContainerPort: 8080,
-					Protocol:      v1.Protocol("TCP"),
+		container := v1.Container{}
+
+		if i != 0 {
+			container = v1.Container{
+				Name:            fmt.Sprintf("container-%d", i),
+				Image:           "docker.io/library/nginx:latest",
+				ImagePullPolicy: v1.PullPolicy("IfNotPresent"),
+				Command:         []string{"sh", "-c", "tail -f /dev/null"},
+				Ports: []v1.ContainerPort{
+					{
+						ContainerPort: 9000 + int32(i),
+						Protocol:      v1.Protocol("TCP"),
+						HostPort:      9000 + int32(i),
+					},
 				},
-			},
+			}
+		} else {
+			container = v1.Container{
+				Name:            fmt.Sprintf("container-%d", i),
+				Image:           "docker.io/library/nginx:latest",
+				ImagePullPolicy: v1.PullPolicy("IfNotPresent"),
+				Ports: []v1.ContainerPort{
+					{
+						ContainerPort: 9000 + int32(i),
+						Protocol:      v1.Protocol("TCP"),
+						HostPort:      9000 + int32(i),
+					},
+				},
+			}
 		}
 
 		createContainers = append(createContainers, container)

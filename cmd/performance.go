@@ -57,28 +57,96 @@ var performanceCmd = &cobra.Command{
 
 		namespace := os.Getenv("NAMESPACE")
 
+		// for i := 0; i < 100; i++ {
+		// 	pkg.GetCheckpointTimePipelined(ctx, clientset, 1, db, namespace)
+		// }
+
+		// for i := 0; i < 100; i++ {
+		// 	pkg.GetCheckpointTimeSequential(ctx, clientset, 1, db, namespace)
+		// }
+
+		// for i := 0; i < 100; i++ {
+		// 	pkg.GetCheckpointTimePipelined(ctx, clientset, 2, db, namespace)
+		// }
+
+		// for i := 0; i < 100; i++ {
+		// 	pkg.GetCheckpointTimeSequential(ctx, clientset, 2, db, namespace)
+		// }
+
+		// for i := 0; i < 100; i++ {
+		// 	pkg.GetCheckpointTimePipelined(ctx, clientset, 5, db, namespace)
+		// }
+
+		// for i := 0; i < 100; i++ {
+		// 	pkg.GetCheckpointTimeSequential(ctx, clientset, 5, db, namespace)
+		// }
+
+		// for i := 0; i < 100; i++ {
+		// 	pkg.GetCheckpointTimePipelined(ctx, clientset, 10, db, namespace)
+		// }
+
+		// for i := 0; i < 100; i++ {
+		// 	pkg.GetCheckpointTimeSequential(ctx, clientset, 10, db, namespace)
+		// }
+
 		for i := 0; i < 100; i++ {
-			pkg.GetCheckpointTimePipelined(ctx, clientset, 1, db, namespace)
+			pkg.GetRestoreTimePipelined(ctx, clientset, 1, db, namespace)
 		}
 
 		for i := 0; i < 100; i++ {
-			pkg.GetCheckpointTimeSequential(ctx, clientset, 1, db, namespace)
+			pkg.GetRestoreTimeParallelized(ctx, clientset, 1, db, namespace)
 		}
 
 		for i := 0; i < 100; i++ {
-			pkg.GetCheckpointTimePipelined(ctx, clientset, 2, db, namespace)
+			pkg.GetRestoreTimeSequential(ctx, clientset, 1, db, namespace)
 		}
 
 		for i := 0; i < 100; i++ {
-			pkg.GetCheckpointTimeSequential(ctx, clientset, 2, db, namespace)
+			pkg.GetRestoreTimePipelined(ctx, clientset, 2, db, namespace)
 		}
 
 		for i := 0; i < 100; i++ {
-			pkg.GetCheckpointTimePipelined(ctx, clientset, 5, db, namespace)
+			pkg.GetRestoreTimeParallelized(ctx, clientset, 2, db, namespace)
 		}
 
 		for i := 0; i < 100; i++ {
-			pkg.GetCheckpointTimeSequential(ctx, clientset, 5, db, namespace)
+			pkg.GetRestoreTimeSequential(ctx, clientset, 2, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			pkg.GetRestoreTimePipelined(ctx, clientset, 3, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			pkg.GetRestoreTimeParallelized(ctx, clientset, 3, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			pkg.GetRestoreTimeSequential(ctx, clientset, 3, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			pkg.GetRestoreTimePipelined(ctx, clientset, 5, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			pkg.GetRestoreTimeParallelized(ctx, clientset, 5, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			pkg.GetRestoreTimeSequential(ctx, clientset, 5, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			pkg.GetRestoreTimePipelined(ctx, clientset, 10, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			pkg.GetRestoreTimeParallelized(ctx, clientset, 10, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			pkg.GetRestoreTimeSequential(ctx, clientset, 10, db, namespace)
 		}
 	},
 }
