@@ -12,47 +12,10 @@ import (
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
 	types "github.com/leonardopoggiani/live-migration-operator/controllers/types"
 	"github.com/withmandala/go-log"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
-
-func waitForServiceCreation(clientset *kubernetes.Clientset, ctx context.Context) {
-	logger := log.New(os.Stderr).WithColor()
-
-	watcher, err := clientset.CoreV1().Services("liqo-demo").Watch(ctx, metav1.ListOptions{})
-	if err != nil {
-		logger.Errorf("Error watching services")
-		return
-	}
-	defer watcher.Stop()
-
-	for {
-		select {
-		case event, ok := <-watcher.ResultChan():
-			if !ok {
-				logger.Info("Watcher channel closed")
-				return
-			}
-			if event.Type == watch.Added {
-				service, ok := event.Object.(*v1.Service)
-				if !ok {
-					logger.Error("Error casting service object")
-					return
-				}
-				if service.Name == "dummy-service" {
-					logger.Info("Service dummy-service created")
-					return
-				}
-			}
-		case <-ctx.Done():
-			logger.Info("Context done")
-			return
-		}
-	}
-}
 
 func Sender(logger *log.Logger) {
 	ctx := context.Background()
@@ -96,8 +59,7 @@ func Sender(logger *log.Logger) {
 		return
 	}
 
-	waitForServiceCreation(clientset, ctx)
-
+	logger.Info("Sending checkpoints..")
 	reconciler := controllers.LiveMigrationReconciler{}
 
 	repetitions := os.Getenv("REPETITIONS")
@@ -148,7 +110,7 @@ func Sender(logger *log.Logger) {
 			}
 		}
 
-		logger.Info("Checkpointing pod %s", pod.Name)
+		logger.Infof("Checkpointing pod %s", pod.Name)
 
 		err = reconciler.CheckpointPodCrio(containers, namespace, pod.Name)
 		if err != nil {
