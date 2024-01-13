@@ -63,6 +63,7 @@ func init() {
 	rootCmd.AddCommand(namespaceCmd)
 	rootCmd.AddCommand(receiverCmd)
 	rootCmd.AddCommand(senderCmd)
+	rootCmd.AddCommand(performanceCmd)
 }
 
 // initConfig reads in config file and ENV variables if set.

@@ -91,7 +91,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed sequential: ", elapsed)
 
-	SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "sequential", "restore_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, elapsed, "sequential", "restore_times", "containers", "elapsed")
 
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {
@@ -110,7 +110,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	elapsed = time.Since(start)
 	fmt.Println("Elapsed pipelined: ", elapsed)
 
-	SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "pipelined", "restore_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, elapsed, "pipelined", "restore_times", "containers", "elapsed")
 
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {
@@ -131,7 +131,7 @@ func GetRestoreTime(ctx context.Context, clientset *kubernetes.Clientset, numCon
 	elapsed = time.Since(start)
 	fmt.Println("Elapsed parallel: ", elapsed)
 
-	SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "parallelized", "restore_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, elapsed, "parallelized", "restore_times", "containers", "elapsed")
 
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {

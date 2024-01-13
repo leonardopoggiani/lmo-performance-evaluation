@@ -125,5 +125,5 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 	elapsed := time.Since(start)
 	fmt.Printf("Time to checkpoint and restore %d containers: %s\n", numContainers, elapsed)
 
-	SaveTimeToDB(ctx, db, numContainers, elapsed.Seconds(), exchange, "total_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, elapsed, exchange, "total_times", "containers", "elapsed")
 }

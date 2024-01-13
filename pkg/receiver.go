@@ -132,9 +132,9 @@ func Receive(logger *log.Logger) {
 				utils.WaitForContainerReady(pod.Name, namespace, pod.Spec.Containers[0].Name, clientset)
 
 				elapsed := time.Since(start)
-				logger.Infof("[MEASURE] Checkpointing took %d\n", elapsed.Milliseconds())
+				logger.Infof("[MEASURE] Checkpointing took %d\n", elapsed)
 
-				SaveTimeToDB(ctx, db, numContainers, float64(elapsed.Milliseconds()), "restore", "restore_times", "containers", "elapsed")
+				SaveTimeToDB(ctx, db, numContainers, elapsed, "restore", "restore_times", "containers", "elapsed")
 				if err != nil {
 					logger.Error(err.Error())
 				}

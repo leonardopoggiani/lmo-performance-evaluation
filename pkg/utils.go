@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/leonardopoggiani/live-migration-operator/controllers"
@@ -160,15 +161,13 @@ func SaveTimeToDB(
 	ctx context.Context,
 	conn *pgx.Conn,
 	numContainers int,
-	time float64,
+	time time.Duration,
 	checkpointType string,
 	tableName string,
 	column1 string,
 	column2 string) {
 
 	logger := log.New(os.Stderr).WithColor()
-
-	normalizedTime := strconv.FormatFloat(time, 'f', -1, 32)
 
 	sql := fmt.Sprintf("INSERT INTO %s (%s, %s, %s) VALUES ($1, $2, $3)", tableName, column1, column2, "checkpoint_type")
 	// Prepare the SQL statement
@@ -184,7 +183,7 @@ func SaveTimeToDB(
 	logger.Info("Inserting data, query: " + stmt.SQL)
 
 	// Execute the prepared statement
-	_, err = conn.Exec(ctx, stmt.SQL, numContainers, normalizedTime, checkpointType)
+	_, err = conn.Exec(ctx, stmt.SQL, numContainers, time, checkpointType)
 	if err != nil {
 		logger.Error(err)
 		return
