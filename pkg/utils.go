@@ -37,27 +37,27 @@ func CreateTestContainers(ctx context.Context, numContainers int, clientset *kub
 		if i != 0 {
 			container = v1.Container{
 				Name:            fmt.Sprintf("container-%d", i),
-				Image:           "docker.io/library/nginx:latest",
+				Image:           "172.16.3.75:5000/mysql:latest",
 				ImagePullPolicy: v1.PullPolicy("IfNotPresent"),
 				Command:         []string{"sh", "-c", "tail -f /dev/null"},
 				Ports: []v1.ContainerPort{
 					{
-						ContainerPort: 9000 + int32(i),
+						ContainerPort: 7000 + int32(i),
 						Protocol:      v1.Protocol("TCP"),
-						HostPort:      9000 + int32(i),
+						HostPort:      7000 + int32(i),
 					},
 				},
 			}
 		} else {
 			container = v1.Container{
 				Name:            fmt.Sprintf("container-%d", i),
-				Image:           "docker.io/library/nginx:latest",
+				Image:           "172.16.3.75:5000/nginx:latest",
 				ImagePullPolicy: v1.PullPolicy("IfNotPresent"),
 				Ports: []v1.ContainerPort{
 					{
-						ContainerPort: 9000 + int32(i),
+						ContainerPort: 7000 + int32(i),
 						Protocol:      v1.Protocol("TCP"),
-						HostPort:      9000 + int32(i),
+						HostPort:      7000 + int32(i),
 					},
 				},
 			}

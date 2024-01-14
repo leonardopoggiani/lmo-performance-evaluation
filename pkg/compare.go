@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn, exchange string, namespace string) {
+func GetTriangularizedTime(ctx context.Context, clientset *kubernetes.Clientset, numContainers int, db *pgx.Conn, namespace string) {
 	logger := log.New(os.Stderr).WithColor()
 
 	reconciler := controllers.LiveMigrationReconciler{}
@@ -59,8 +60,6 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 		}
 	}
 
-	start := time.Now()
-
 	err = reconciler.CheckpointPodCrio(containers, namespace, pod.Name)
 	if err != nil {
 		logger.Errorf(err.Error())
@@ -70,37 +69,35 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 
 	CleanUp(ctx, clientset, pod, namespace)
 
+	start := time.Now()
+
 	pod, err = reconciler.BuildahRestore(ctx, "/tmp/checkpoints/checkpoints", clientset, namespace)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return
 	}
 
-	utils.PushDockerImage("localhost/leonardopoggiani/checkpoint-images:container-"+strconv.Itoa(numContainers-1), "container-"+strconv.Itoa(numContainers-1), pod.Name)
+	CleanUp(ctx, clientset, pod, namespace)
+
+	for i := 0; i < numContainers; i++ {
+		utils.PushDockerImage("localhost/leonardopoggiani/checkpoint-images:container-"+strconv.Itoa(i), "container-"+strconv.Itoa(i), pod.Name)
+	}
 
 	createContainers := []v1.Container{}
 
-	if exchange == "direct" {
-		// TODO: send to the other node
-		for i := 0; i < numContainers; i++ {
-			container := v1.Container{
-				Name:            fmt.Sprintf("container-%d", i),
-				Image:           "localhost/leonardopoggiani/checkpoint-images:container-" + strconv.Itoa(i),
-				ImagePullPolicy: v1.PullPolicy("IfNotPresent"),
-			}
-
-			createContainers = append(createContainers, container)
+	for i := 0; i < numContainers; i++ {
+		container := v1.Container{
+			Name:            fmt.Sprintf("container-%d", i),
+			Image:           "172.16.3.75:5000/checkpoint-images:container-" + strconv.Itoa(i),
+			ImagePullPolicy: v1.PullPolicy("Always"),
+			SecurityContext: &v1.SecurityContext{
+				SELinuxOptions: &v1.SELinuxOptions{
+					Level: "s0:c525,c600",
+				},
+			},
 		}
-	} else if exchange == "triangularized" {
-		for i := 0; i < numContainers; i++ {
-			container := v1.Container{
-				Name:            fmt.Sprintf("container-%d", i),
-				Image:           "docker.io/leonardopoggiaini/checkpoint-images:container-" + strconv.Itoa(i),
-				ImagePullPolicy: v1.PullPolicy("IfNotPresent"),
-			}
 
-			createContainers = append(createContainers, container)
-		}
+		createContainers = append(createContainers, container)
 	}
 
 	// Create the Pod
@@ -108,11 +105,16 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("test-pod-%d-containers", numContainers),
 			Labels: map[string]string{
-				"app": "test",
+				"app": "restored",
+			},
+			Namespace: namespace,
+			Annotations: map[string]string{
+				"io.kubernetes.cri-o.TrySkipVolumeSELinuxLabel": "true",
 			},
 		},
 		Spec: v1.PodSpec{
-			Containers: createContainers,
+			Containers:            createContainers,
+			ShareProcessNamespace: &[]bool{true}[0],
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
@@ -123,7 +125,22 @@ func GetTimeDirectVsTriangularized(ctx context.Context, clientset *kubernetes.Cl
 	utils.WaitForContainerReady(pod.Name, namespace, "container-"+strconv.Itoa(numContainers-1), clientset)
 
 	elapsed := time.Since(start)
-	fmt.Printf("Time to checkpoint and restore %d containers: %s\n", numContainers, elapsed)
+	logger.Infof("Time to checkpoint and restore %d containers: %s\n", numContainers, elapsed)
 
-	SaveTimeToDB(ctx, db, numContainers, elapsed, exchange, "total_times", "containers", "elapsed")
+	SaveTimeToDB(ctx, db, numContainers, elapsed, "triangularized", "triangularized_times", "containers", "elapsed")
+
+	directory := "/tmp/checkpoints/checkpoints"
+	if _, err := exec.Command("sudo", "rm", "-rf", directory+"/").Output(); err != nil {
+		CleanUp(ctx, clientset, pod, namespace)
+		logger.Error(err.Error())
+		return
+	}
+
+	if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
+		CleanUp(ctx, clientset, pod, namespace)
+		logger.Error(err.Error())
+		return
+	}
+
+	CleanUp(ctx, clientset, pod, namespace)
 }

@@ -22,6 +22,12 @@ func GetCheckpointTimeSequential(ctx context.Context, clientset *kubernetes.Clie
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+	if pod == nil {
+		pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+		if pod == nil {
+			return
+		}
+	}
 
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
@@ -96,6 +102,12 @@ func GetCheckpointTimePipelined(ctx context.Context, clientset *kubernetes.Clien
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+	if pod == nil {
+		pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+		if pod == nil {
+			return
+		}
+	}
 
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
@@ -106,10 +118,8 @@ func GetCheckpointTimePipelined(ctx context.Context, clientset *kubernetes.Clien
 
 	fmt.Printf("Pod %s is ready\n", pod.Name)
 
-	// Create a slice of Container structs
 	var containers []types.Container
 
-	// Append the container ID and name for each container in each pod
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		logger.Errorf(err.Error())
@@ -141,13 +151,11 @@ func GetCheckpointTimePipelined(ctx context.Context, clientset *kubernetes.Clien
 		return
 	}
 
-	// Calculate the time taken for the checkpoint
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed pipelined: ", elapsed)
 
 	SaveTimeToDB(ctx, db, numContainers, elapsed, "pipelined", "checkpoint_times", "containers", "elapsed")
 
-	// delete checkpoint folder
 	directory := "/tmp/checkpoints/checkpoints"
 	if _, err := exec.Command("sudo", "rm", "-rf", directory+"/").Output(); err != nil {
 		CleanUp(ctx, clientset, pod, namespace)

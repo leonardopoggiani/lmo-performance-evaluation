@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/jackc/pgx/v5"
@@ -57,77 +58,110 @@ var performanceCmd = &cobra.Command{
 
 		namespace := os.Getenv("NAMESPACE")
 
+		for i := 0; i < 100; i++ {
+			logger.Info("Repetition: " + fmt.Sprint(i))
+			pkg.GetCheckpointTimePipelined(ctx, clientset, 1, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			logger.Info("Repetition: " + fmt.Sprint(i))
+			pkg.GetCheckpointTimeSequential(ctx, clientset, 1, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			logger.Info("Repetition: " + fmt.Sprint(i))
+			pkg.GetCheckpointTimePipelined(ctx, clientset, 3, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			logger.Info("Repetition: " + fmt.Sprint(i))
+			pkg.GetCheckpointTimeSequential(ctx, clientset, 3, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			logger.Info("Repetition: " + fmt.Sprint(i))
+			pkg.GetCheckpointTimePipelined(ctx, clientset, 5, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			logger.Info("Repetition: " + fmt.Sprint(i))
+			pkg.GetCheckpointTimeSequential(ctx, clientset, 5, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			logger.Info("Repetition: " + fmt.Sprint(i))
+			pkg.GetCheckpointTimePipelined(ctx, clientset, 10, db, namespace)
+		}
+
+		for i := 0; i < 100; i++ {
+			logger.Info("Repetition: " + fmt.Sprint(i))
+			pkg.GetCheckpointTimeSequential(ctx, clientset, 10, db, namespace)
+		}
+
 		// for i := 0; i < 100; i++ {
-		// 	pkg.GetCheckpointTimePipelined(ctx, clientset, 1, db, namespace)
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetRestoreTimeParallelized(ctx, clientset, 1, db, namespace)
 		// }
 
 		// for i := 0; i < 100; i++ {
-		// 	pkg.GetCheckpointTimeSequential(ctx, clientset, 1, db, namespace)
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetRestoreTimeSequential(ctx, clientset, 1, db, namespace)
 		// }
 
 		// for i := 0; i < 100; i++ {
-		// 	pkg.GetCheckpointTimePipelined(ctx, clientset, 2, db, namespace)
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetRestoreTimeSequential(ctx, clientset, 2, db, namespace)
 		// }
 
 		// for i := 0; i < 100; i++ {
-		// 	pkg.GetCheckpointTimeSequential(ctx, clientset, 2, db, namespace)
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetRestoreTimeSequential(ctx, clientset, 3, db, namespace)
 		// }
 
 		// for i := 0; i < 100; i++ {
-		// 	pkg.GetCheckpointTimePipelined(ctx, clientset, 5, db, namespace)
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetRestoreTimeSequential(ctx, clientset, 5, db, namespace)
+		// }
+
+		// for i := 0; i < 10; i++ {
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetRestoreTimeParallelized(ctx, clientset, 10, db, namespace)
+		// }
+
+		// for i := 0; i < 10; i++ {
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetRestoreTimeParallelized(ctx, clientset, 20, db, namespace)
 		// }
 
 		// for i := 0; i < 100; i++ {
-		// 	pkg.GetCheckpointTimeSequential(ctx, clientset, 5, db, namespace)
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetTriangularizedTime(ctx, clientset, 1, db, namespace)
 		// }
 
 		// for i := 0; i < 100; i++ {
-		// 	pkg.GetCheckpointTimePipelined(ctx, clientset, 10, db, namespace)
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetTriangularizedTime(ctx, clientset, 2, db, namespace)
 		// }
 
 		// for i := 0; i < 100; i++ {
-		// 	pkg.GetCheckpointTimeSequential(ctx, clientset, 10, db, namespace)
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetTriangularizedTime(ctx, clientset, 3, db, namespace)
 		// }
 
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeParallelized(ctx, clientset, 1, db, namespace)
-		}
+		// for i := 0; i < 100; i++ {
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetTriangularizedTime(ctx, clientset, 5, db, namespace)
+		// }
 
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeSequential(ctx, clientset, 1, db, namespace)
-		}
+		// for i := 0; i < 100; i++ {
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetTriangularizedTime(ctx, clientset, 10, db, namespace)
+		// }
 
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeParallelized(ctx, clientset, 2, db, namespace)
-		}
-
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeSequential(ctx, clientset, 2, db, namespace)
-		}
-
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeParallelized(ctx, clientset, 3, db, namespace)
-		}
-
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeSequential(ctx, clientset, 3, db, namespace)
-		}
-
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeParallelized(ctx, clientset, 5, db, namespace)
-		}
-
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeSequential(ctx, clientset, 5, db, namespace)
-		}
-
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeParallelized(ctx, clientset, 10, db, namespace)
-		}
-
-		for i := 0; i < 100; i++ {
-			pkg.GetRestoreTimeSequential(ctx, clientset, 10, db, namespace)
-		}
+		// for i := 0; i < 100; i++ {
+		// 	logger.Info("Repetition: " + fmt.Sprint(i))
+		// 	pkg.GetTriangularizedTime(ctx, clientset, 20, db, namespace)
+		// }
 	},
 }
 

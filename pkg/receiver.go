@@ -116,6 +116,8 @@ func Receive(logger *log.Logger) {
 		return
 	}
 
+	logger.Info("Starting receiver")
+
 	for {
 		if waitForFile(21000*time.Second, directory) {
 			logger.Info("File detected, restoring pod")
