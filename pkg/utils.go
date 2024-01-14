@@ -27,10 +27,10 @@ func CreateTestContainers(ctx context.Context, numContainers int, clientset *kub
 	randStr := fmt.Sprintf("%d", rand.Intn(4000)+1000)
 
 	createContainers := []v1.Container{}
-	fmt.Println("numContainers: " + fmt.Sprintf("%d", numContainers))
+	logger.Infof("Creating %s containers", fmt.Sprintf("%d", numContainers))
 	// Add the specified number of containers to the Pod manifest
 	for i := 0; i < numContainers; i++ {
-		fmt.Println("Creating container: " + fmt.Sprintf("container-%d", i))
+		logger.Info("Creating container: " + fmt.Sprintf("container-%d", i))
 
 		container := v1.Container{}
 
@@ -84,15 +84,16 @@ func CreateTestContainers(ctx context.Context, numContainers int, clientset *kub
 		logger.Errorf(err.Error())
 		return nil
 	} else {
-		fmt.Printf("Pod %s created, container name: %s\n", pod.Name, createContainers[0].Name)
+		logger.Infof("Pod %s created, container name: %s\n", pod.Name, createContainers[0].Name)
 	}
 
 	err = utils.WaitForContainerReady(pod.Name, namespace, createContainers[0].Name, clientset)
 	if err != nil {
 		logger.Errorf(err.Error())
+		CleanUp(ctx, clientset, pod, namespace)
 		return nil
 	} else {
-		fmt.Println("Container started and ready")
+		logger.Info("Container started and ready")
 	}
 
 	return pod

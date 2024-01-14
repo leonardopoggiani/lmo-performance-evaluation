@@ -22,6 +22,15 @@ func GetCheckpointSizePipelined(ctx context.Context, clientset *kubernetes.Clien
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+	if pod == nil {
+		logger.Error("Pod not correctly created")
+		logger.Info("Retrying creation..")
+		pod = CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+		if pod == nil {
+			logger.Error("Pod not correctly created for the second time, exiting..")
+			return
+		}
+	}
 
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
@@ -130,6 +139,15 @@ func GetCheckpointSizeSequential(ctx context.Context, clientset *kubernetes.Clie
 	reconciler := controllers.LiveMigrationReconciler{}
 
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+	if pod == nil {
+		logger.Error("Pod not correctly created")
+		logger.Info("Retrying creation..")
+		pod = CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+		if pod == nil {
+			logger.Error("Pod not correctly created for the second time, exiting..")
+			return
+		}
+	}
 
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {

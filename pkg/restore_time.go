@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,15 @@ func GetRestoreTimePipelined(ctx context.Context, clientset *kubernetes.Clientse
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+	if pod == nil {
+		logger.Error("Pod not correctly created")
+		logger.Info("Retrying creation..")
+		pod = CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+		if pod == nil {
+			logger.Error("Pod not correctly created for the second time, exiting..")
+			return
+		}
+	}
 
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
@@ -59,12 +69,15 @@ func GetRestoreTimePipelined(ctx context.Context, clientset *kubernetes.Clientse
 		}
 	}
 
+	logger.Info("Checkpointing...")
+
 	err = controllers.CheckpointPodPipelined(containers, namespace, pod.Name)
 	if err != nil {
 		return
 	}
 
 	path := "/tmp/checkpoints/checkpoints/"
+
 	// create dummy file
 	_, err = os.Create(path + "dummy")
 	if err != nil {
@@ -89,7 +102,7 @@ func GetRestoreTimePipelined(ctx context.Context, clientset *kubernetes.Clientse
 	}
 	// Calculate the time taken for the restore
 	elapsed := time.Since(start)
-	fmt.Println("Elapsed sequential: ", elapsed)
+	logger.Info("Elapsed sequential: ", elapsed)
 
 	SaveTimeToDB(ctx, db, numContainers, elapsed, "sequential", "restore_times", "containers", "elapsed")
 
@@ -107,6 +120,15 @@ func GetRestoreTimeSequential(ctx context.Context, clientset *kubernetes.Clients
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+	if pod == nil {
+		logger.Error("Pod not correctly created")
+		logger.Info("Retrying creation..")
+		pod = CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+		if pod == nil {
+			logger.Error("Pod not correctly created for the second time, exiting..")
+			return
+		}
+	}
 
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
@@ -143,6 +165,8 @@ func GetRestoreTimeSequential(ctx context.Context, clientset *kubernetes.Clients
 		}
 	}
 
+	logger.Info("Checkpointing...")
+
 	err = controllers.CheckpointPodPipelined(containers, namespace, pod.Name)
 	if err != nil {
 		return
@@ -164,6 +188,13 @@ func GetRestoreTimeSequential(ctx context.Context, clientset *kubernetes.Clients
 
 	fmt.Printf("Files count => %d \n", files)
 
+	CleanUp(ctx, clientset, pod, namespace)
+	err = utils.WaitForPodDeletion(ctx, pod.Name, namespace, clientset)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return
+	}
+
 	start := time.Now()
 
 	pod, err = reconciler.BuildahRestore(ctx, "/tmp/checkpoints/checkpoints", clientset, namespace)
@@ -171,6 +202,14 @@ func GetRestoreTimeSequential(ctx context.Context, clientset *kubernetes.Clients
 		logger.Errorf(err.Error())
 		return
 	}
+
+	err = utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
+	if err != nil {
+		CleanUp(ctx, clientset, pod, namespace)
+		logger.Errorf(err.Error())
+		return
+	}
+
 	// Calculate the time taken for the restore
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed sequential: ", elapsed)
@@ -182,6 +221,16 @@ func GetRestoreTimeSequential(ctx context.Context, clientset *kubernetes.Clients
 		BuildahDeleteImage("localhost/leonardopoggiani/checkpoint-images:container-" + strconv.Itoa(i))
 	}
 
+	if _, err := exec.Command("sudo", "rm", "-rf", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
+		logger.Error(err.Error())
+		return
+	}
+
+	if _, err := exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
+		logger.Error(err.Error())
+		return
+	}
+
 	CleanUp(ctx, clientset, pod, namespace)
 }
 
@@ -191,6 +240,15 @@ func GetRestoreTimeParallelized(ctx context.Context, clientset *kubernetes.Clien
 
 	reconciler := controllers.LiveMigrationReconciler{}
 	pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+	if pod == nil {
+		logger.Error("Pod not correctly created")
+		logger.Info("Retrying creation..")
+		pod = CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
+		if pod == nil {
+			logger.Error("Pod not correctly created for the second time, exiting..")
+			return
+		}
+	}
 
 	err := utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
 	if err != nil {
@@ -227,6 +285,8 @@ func GetRestoreTimeParallelized(ctx context.Context, clientset *kubernetes.Clien
 		}
 	}
 
+	logger.Info("Checkpointing...")
+
 	err = controllers.CheckpointPodPipelined(containers, namespace, pod.Name)
 	if err != nil {
 		return
@@ -248,6 +308,13 @@ func GetRestoreTimeParallelized(ctx context.Context, clientset *kubernetes.Clien
 
 	fmt.Printf("Files count => %d \n", files)
 
+	CleanUp(ctx, clientset, pod, namespace)
+	err = utils.WaitForPodDeletion(ctx, pod.Name, namespace, clientset)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return
+	}
+
 	start := time.Now()
 
 	pod, err = reconciler.BuildahRestoreParallelized(ctx, "/tmp/checkpoints/checkpoints", clientset, namespace)
@@ -255,7 +322,14 @@ func GetRestoreTimeParallelized(ctx context.Context, clientset *kubernetes.Clien
 		logger.Errorf(err.Error())
 		return
 	}
-	// Calculate the time taken for the restore
+
+	err = utils.WaitForContainerReady(pod.Name, namespace, fmt.Sprintf("container-%d", numContainers-1), clientset)
+	if err != nil {
+		CleanUp(ctx, clientset, pod, namespace)
+		logger.Errorf(err.Error())
+		return
+	}
+
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed parallelized: ", elapsed)
 
@@ -264,6 +338,16 @@ func GetRestoreTimeParallelized(ctx context.Context, clientset *kubernetes.Clien
 	// eliminate docker image
 	for i := 0; i < numContainers; i++ {
 		BuildahDeleteImage("localhost/leonardopoggiani/checkpoint-images:container-" + strconv.Itoa(i))
+	}
+
+	if _, err := exec.Command("sudo", "rm", "-rf", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
+		logger.Error(err.Error())
+		return
+	}
+
+	if _, err := exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
+		logger.Error(err.Error())
+		return
 	}
 
 	CleanUp(ctx, clientset, pod, namespace)
