@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
@@ -67,17 +68,18 @@ func Sender(logger *log.Logger) {
 
 	numRepetitions, err := strconv.Atoi(repetitions)
 	if err != nil {
-		logger.Error("Error covnerting with Atoi")
+		logger.Error("Error converting with Atoi")
 		return
 	}
 
 	numContainers, err := strconv.Atoi(containers)
 	if err != nil {
-		logger.Error("Error covnerting with Atoi")
+		logger.Error("Error converting with Atoi")
 		return
 	}
 
 	for j := 0; j <= numRepetitions-1; j++ {
+		time.Sleep(30 * time.Second)
 		logger.Infof("Repetitions %d \n", j)
 		pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
 
@@ -111,6 +113,7 @@ func Sender(logger *log.Logger) {
 		}
 
 		logger.Infof("Checkpointing pod %s", pod.Name)
+		start := time.Now()
 
 		err = reconciler.CheckpointPodCrio(containers, namespace, pod.Name)
 		if err != nil {
@@ -118,6 +121,20 @@ func Sender(logger *log.Logger) {
 			return
 		} else {
 			logger.Info("Checkpointing completed")
+		}
+
+		elapsed := time.Since(start)
+		logger.Infof("[MEASURE] Checkpoint the pod took %d\n", elapsed)
+
+		SaveTimeToDB(ctx, db, numContainers, elapsed, "restore", "total_times", "containers", "elapsed")
+		if err != nil {
+			logger.Error(err.Error())
+		}
+
+		logger.Infof("[MEASURE] Start time %d\n", start.UnixMilli())
+		SaveAbsoluteTimeToDB(ctx, db, numContainers, start, "restore", "start_times", "containers", "elapsed")
+		if err != nil {
+			logger.Error(err.Error())
 		}
 
 		err = reconciler.TerminateCheckpointedPod(ctx, pod.Name, clientset, namespace)
@@ -129,6 +146,13 @@ func Sender(logger *log.Logger) {
 		}
 
 		directory := os.Getenv("CHECKPOINTS_FOLDER")
+
+		if _, err := exec.Command("sudo", "touch", directory+"/dummy").Output(); err != nil {
+			logger.Error(err.Error())
+			return
+		} else {
+			logger.Info("Dummy file created")
+		}
 
 		files, err := os.ReadDir(directory)
 		if err != nil {

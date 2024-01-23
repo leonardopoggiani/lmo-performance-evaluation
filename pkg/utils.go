@@ -212,6 +212,41 @@ func SaveTimeToDB(
 	logger.Info("Data inserted successfully.")
 }
 
+func SaveAbsoluteTimeToDB(
+	ctx context.Context,
+	conn *pgx.Conn,
+	numContainers int,
+	time time.Time,
+	checkpointType string,
+	tableName string,
+	column1 string,
+	column2 string) {
+
+	logger := log.New(os.Stderr).WithColor()
+
+	sql := fmt.Sprintf("INSERT INTO %s (%s, %s, %s) VALUES ($1, $2, $3)", tableName, column1, column2, "checkpoint_type")
+	// Prepare the SQL statement
+	statement_name := fmt.Sprintf("statement-%d", rand.Intn(8000)+1000)
+
+	stmt, err := conn.Prepare(ctx, statement_name, sql)
+	if err != nil {
+		logger.Error(err)
+		logger.Error(stmt.SQL)
+		return
+	}
+
+	logger.Info("Inserting data, query: " + stmt.SQL)
+
+	// Execute the prepared statement
+	_, err = conn.Exec(ctx, stmt.SQL, numContainers, time.UnixMilli(), checkpointType)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+
+	logger.Info("Data inserted successfully.")
+}
+
 func CountFilesInFolder(folderPath string) (int, error) {
 	logger := log.New(os.Stderr).WithColor()
 
@@ -257,4 +292,24 @@ func GetImageSize(imageName string) (float64, error) {
 	sizeInMB := sizeInBytes / (1024 * 1024)
 
 	return sizeInMB, nil
+}
+
+func DeleteDummyPodAndService(ctx context.Context, clientset *kubernetes.Clientset, namespace string, podName string, serviceName string) error {
+	logger := log.New(os.Stderr).WithColor()
+
+	// Delete Pod
+	err := clientset.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
+	if err != nil {
+		logger.Errorf("error deleting pod: %v", err)
+		return err
+	}
+
+	// Delete Service
+	err = clientset.CoreV1().Services(namespace).Delete(ctx, serviceName, metav1.DeleteOptions{})
+	if err != nil {
+		logger.Errorf("error deleting service: %v", err)
+		return err
+	}
+
+	return nil
 }

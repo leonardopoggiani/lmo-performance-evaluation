@@ -12,8 +12,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 	controllers "github.com/leonardopoggiani/live-migration-operator/controllers"
+	"github.com/leonardopoggiani/live-migration-operator/controllers/dummy"
 	utils "github.com/leonardopoggiani/live-migration-operator/controllers/utils"
 	"github.com/withmandala/go-log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -21,53 +23,48 @@ import (
 func waitForFile(timeout time.Duration, path string) bool {
 	logger := log.New(os.Stderr).WithColor()
 
-	filePath := path
+	filePath := filepath.Join(path, "dummy")
 
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		logger.Errorf("Failed to create watcher: %v", err)
-	}
-	defer watcher.Close()
+	for {
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			logger.Errorf("Failed to create watcher: %v", err)
+			return false
+		}
+		defer watcher.Close()
 
-	done := make(chan bool)
+		err = watcher.Add(path)
+		if err != nil {
+			logger.Errorf("Failed to add watcher: %v", err)
+			return false
+		}
 
-	go func() {
+		done := make(chan bool)
+
 		for {
 			select {
 			case event, ok := <-watcher.Events:
-				if !ok {
-					return
+				if event.Op.Has(fsnotify.Create) && filepath.Clean(event.Name) == filePath {
+					logger.Info("File 'dummy' detected.")
+					close(done)
+					return true
 				}
-				if event.Op&fsnotify.Create == fsnotify.Create {
-					if filepath.Clean(event.Name) == filePath {
-						logger.Info("File 'dummy' detected.")
-						done <- true
-					}
+
+				if !ok {
+					logger.Errorf("Error occurred in watcher: %v", err)
+					return false
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
-					return
+					logger.Errorf("Error occurred in watcher: %v", err)
+					return false
 				}
-				logger.Errorf("Error occurred in watcher: %v", err)
 			}
 		}
-	}()
-
-	err = watcher.Add(filepath.Dir(filePath))
-	if err != nil {
-		logger.Errorf("Failed to add watcher: %v", err)
-	}
-
-	select {
-	case <-done:
-		return true
-	case <-time.After(timeout):
-		return false
 	}
 }
 
 func Receive(logger *log.Logger) {
-	// Use a context to cancel the loop that checks for sourcePod
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -116,6 +113,24 @@ func Receive(logger *log.Logger) {
 		return
 	}
 
+	_, err = clientset.CoreV1().Pods(namespace).Get(ctx, "dummy=pod", metav1.GetOptions{})
+	if err == nil {
+		_ = DeleteDummyPodAndService(ctx, clientset, namespace, "dummy-pod", "dummy-service")
+		_ = utils.WaitForPodDeletion(ctx, "dummy-pod", namespace, clientset)
+	}
+
+	err = dummy.CreateDummyPod(clientset, ctx, namespace)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return
+	}
+
+	err = dummy.CreateDummyService(clientset, ctx, namespace)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return
+	}
+
 	logger.Info("Starting receiver")
 
 	for {
@@ -134,9 +149,15 @@ func Receive(logger *log.Logger) {
 				utils.WaitForContainerReady(pod.Name, namespace, pod.Spec.Containers[0].Name, clientset)
 
 				elapsed := time.Since(start)
-				logger.Infof("[MEASURE] Checkpointing took %d\n", elapsed)
+				end := time.Now()
+				logger.Infof("[MEASURE] Restoring the pod took %d\n", elapsed)
 
-				SaveTimeToDB(ctx, db, numContainers, elapsed, "restore", "restore_times", "containers", "elapsed")
+				SaveTimeToDB(ctx, db, numContainers, elapsed, "restore", "total_times", "containers", "elapsed")
+				if err != nil {
+					logger.Error(err.Error())
+				}
+
+				SaveAbsoluteTimeToDB(ctx, db, numContainers, end, "restore", "end_times", "containers", "elapsed")
 				if err != nil {
 					logger.Error(err.Error())
 				}
@@ -152,6 +173,21 @@ func Receive(logger *log.Logger) {
 
 			if _, err = exec.Command("sudo", "mkdir", "/tmp/checkpoints/checkpoints/").Output(); err != nil {
 				logger.Error(err.Error())
+				return
+			}
+
+			_ = DeleteDummyPodAndService(ctx, clientset, namespace, "dummy-pod", "dummy-service")
+			_ = utils.WaitForPodDeletion(ctx, "dummy-pod", namespace, clientset)
+
+			err = dummy.CreateDummyPod(clientset, ctx, namespace)
+			if err != nil {
+				logger.Errorf(err.Error())
+				return
+			}
+
+			err = dummy.CreateDummyService(clientset, ctx, namespace)
+			if err != nil {
+				logger.Errorf(err.Error())
 				return
 			}
 

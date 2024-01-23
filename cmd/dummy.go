@@ -6,32 +6,13 @@ import (
 
 	"github.com/leonardopoggiani/live-migration-operator/controllers/dummy"
 	"github.com/leonardopoggiani/live-migration-operator/controllers/utils"
+	pkg "github.com/leonardopoggiani/lmo-performance-evaluation/pkg"
 	"github.com/spf13/cobra"
 	"github.com/withmandala/go-log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
-
-func deleteDummyPodAndService(ctx context.Context, clientset *kubernetes.Clientset, namespace string, podName string, serviceName string) error {
-	logger := log.New(os.Stderr).WithColor()
-
-	// Delete Pod
-	err := clientset.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
-	if err != nil {
-		logger.Errorf("error deleting pod: %v", err)
-		return err
-	}
-
-	// Delete Service
-	err = clientset.CoreV1().Services(namespace).Delete(ctx, serviceName, metav1.DeleteOptions{})
-	if err != nil {
-		logger.Errorf("error deleting service: %v", err)
-		return err
-	}
-
-	return nil
-}
 
 // serveCmd represents the serve command
 var dummyCmd = &cobra.Command{
@@ -76,7 +57,7 @@ The dummy pod and service will be created in the test namespace.`,
 		// Check if the pod exists
 		_, err = clientset.CoreV1().Pods(namespace).Get(ctx, "dummy=pod", metav1.GetOptions{})
 		if err == nil {
-			_ = deleteDummyPodAndService(ctx, clientset, namespace, "dummy-pod", "dummy-service")
+			_ = pkg.DeleteDummyPodAndService(ctx, clientset, namespace, "dummy-pod", "dummy-service")
 			_ = utils.WaitForPodDeletion(ctx, "dummy-pod", namespace, clientset)
 		}
 
