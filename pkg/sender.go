@@ -115,7 +115,7 @@ func Sender(logger *log.Logger) {
 		logger.Infof("Checkpointing pod %s", pod.Name)
 		start := time.Now()
 
-		err = reconciler.CheckpointPodCrio(containers, namespace, pod.Name)
+		err = controllers.CheckpointPodPipelined(containers, namespace, pod.Name)
 		if err != nil {
 			logger.Error(err.Error())
 			return
@@ -168,7 +168,7 @@ func Sender(logger *log.Logger) {
 			}
 		}
 
-		err = reconciler.MigrateCheckpoint(ctx, directory, clientset, namespace)
+		err = reconciler.MigrateCheckpointParallelized(ctx, files, directory, clientset, namespace)
 		if err != nil {
 			logger.Error(err.Error())
 			return

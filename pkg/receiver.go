@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -106,8 +105,6 @@ func Receive(logger *log.Logger) {
 	namespace := os.Getenv("NAMESPACE")
 
 	directory := os.Getenv("CHECKPOINTS_FOLDER")
-	containers := os.Getenv("NUM_CONTAINERS")
-	numContainers, err := strconv.Atoi(containers)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return
@@ -139,7 +136,7 @@ func Receive(logger *log.Logger) {
 
 			start := time.Now()
 
-			pod, err := reconciler.BuildahRestore(ctx, directory, clientset, namespace)
+			pod, err := reconciler.BuildahRestoreParallelized(ctx, directory, clientset, namespace)
 			if err != nil {
 				logger.Error(err.Error())
 				os.Exit(1)
@@ -152,12 +149,12 @@ func Receive(logger *log.Logger) {
 				end := time.Now()
 				logger.Infof("[MEASURE] Restoring the pod took %d\n", elapsed)
 
-				SaveTimeToDB(ctx, db, numContainers, elapsed, "restore", "total_times", "containers", "elapsed")
+				SaveTimeToDB(ctx, db, len(pod.Spec.Containers), elapsed, "restore", "total_times", "containers", "elapsed")
 				if err != nil {
 					logger.Error(err.Error())
 				}
 
-				SaveAbsoluteTimeToDB(ctx, db, numContainers, end, "restore", "end_times", "containers", "elapsed")
+				SaveAbsoluteTimeToDB(ctx, db, len(pod.Spec.Containers), end, "restore", "end_times", "containers", "elapsed")
 				if err != nil {
 					logger.Error(err.Error())
 				}
