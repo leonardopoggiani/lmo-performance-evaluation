@@ -110,7 +110,7 @@ func Receive(logger *log.Logger) {
 		return
 	}
 
-	_, err = clientset.CoreV1().Pods(namespace).Get(ctx, "dummy=pod", metav1.GetOptions{})
+	_, err = clientset.CoreV1().Pods(namespace).Get(ctx, "dummy-pod", metav1.GetOptions{})
 	if err == nil {
 		_ = DeleteDummyPodAndService(ctx, clientset, namespace, "dummy-pod", "dummy-service")
 		_ = utils.WaitForPodDeletion(ctx, "dummy-pod", namespace, clientset)
@@ -136,7 +136,7 @@ func Receive(logger *log.Logger) {
 
 			start := time.Now()
 
-			pod, err := reconciler.BuildahRestoreParallelized(ctx, directory, clientset, namespace)
+			pod, err := reconciler.BuildahRestore(ctx, directory, clientset, namespace)
 			if err != nil {
 				logger.Error(err.Error())
 				os.Exit(1)

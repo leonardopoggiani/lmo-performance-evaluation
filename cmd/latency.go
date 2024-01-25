@@ -3,31 +3,29 @@ package cmd
 import (
 	"context"
 	"os"
+	"strconv"
 
-	"github.com/leonardopoggiani/live-migration-operator/controllers/dummy"
-	"github.com/leonardopoggiani/live-migration-operator/controllers/utils"
-	pkg "github.com/leonardopoggiani/lmo-performance-evaluation/pkg"
+	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
+	"github.com/leonardopoggiani/lmo-performance-evaluation/latency"
 	"github.com/spf13/cobra"
 	"github.com/withmandala/go-log"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 // serveCmd represents the serve command
-var dummyCmd = &cobra.Command{
-	Use:   "dummy",
-	Short: "Create dummy pod and service",
-	Long: `Create the dummy pod and service, needed for the Live Migration Operator.
-The dummy pod and service will be created in the test namespace.`,
+var latencyCmd = &cobra.Command{
+	Use:   "latency",
+	Short: "Execute the latency test",
+	Long:  `Make HTTP request to the pod during migration and record the latency.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr).WithColor()
-		logger.Info("dummy command called")
+		logger.Info("latency command called")
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// Load Kubernetes config
 		kubeconfigPath := os.Getenv("KUBECONFIG")
 		if kubeconfigPath == "" {
 			kubeconfigPath = "~/.kube/config"
@@ -51,30 +49,30 @@ The dummy pod and service will be created in the test namespace.`,
 			logger.Errorf("Error creating kubernetes client")
 			return
 		}
+		defer cancel()
 
 		namespace := os.Getenv("NAMESPACE")
 
-		// Check if the pod exists
-		_, err = clientset.CoreV1().Pods(namespace).Get(ctx, "dummy-pod", metav1.GetOptions{})
-		if err == nil {
-			_ = pkg.DeleteDummyPodAndService(ctx, clientset, namespace, "dummy-pod", "dummy-service")
-			_ = utils.WaitForPodDeletion(ctx, "dummy-pod", namespace, clientset)
-		}
-
-		err = dummy.CreateDummyPod(clientset, ctx, namespace)
+		containers := os.Getenv("NUM_CONTAINERS")
+		numContainers, err := strconv.Atoi(containers)
 		if err != nil {
-			logger.Errorf(err.Error())
+			logger.Error("Error converting with Atoi")
 			return
 		}
 
-		err = dummy.CreateDummyService(clientset, ctx, namespace)
+		godotenv.Load(".env")
+
+		db, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
 		if err != nil {
-			logger.Errorf(err.Error())
-			return
+			logger.Errorf("Unable to connect to database: %v\n", err)
+			os.Exit(1)
 		}
+		defer db.Close(ctx)
+
+		latency.GetLatency(ctx, clientset, namespace, db, numContainers, logger)
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(dummyCmd)
+	rootCmd.AddCommand(latencyCmd)
 }

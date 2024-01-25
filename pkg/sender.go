@@ -79,7 +79,7 @@ func Sender(logger *log.Logger) {
 	}
 
 	for j := 0; j <= numRepetitions-1; j++ {
-		time.Sleep(30 * time.Second)
+		time.Sleep(60 * time.Second)
 		logger.Infof("Repetitions %d \n", j)
 		pod := CreateTestContainers(ctx, numContainers, clientset, reconciler, namespace)
 
@@ -168,7 +168,7 @@ func Sender(logger *log.Logger) {
 			}
 		}
 
-		err = reconciler.MigrateCheckpointParallelized(ctx, files, directory, clientset, namespace)
+		err = reconciler.MigrateCheckpoint(ctx, directory, clientset, namespace)
 		if err != nil {
 			logger.Error(err.Error())
 			return
