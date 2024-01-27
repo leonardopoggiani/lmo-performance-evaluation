@@ -37,6 +37,7 @@ var initCmd = &cobra.Command{
 		pkg.CreateTable(ctx, db, "start_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
 		pkg.CreateTable(ctx, db, "end_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
 		pkg.CreateTable(ctx, db, "latency", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
+		pkg.CreateTable(ctx, db, "back_and_forth_times", "timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, containers INTEGER, elapsed FLOAT, checkpoint_type TEXT")
 	},
 }
 

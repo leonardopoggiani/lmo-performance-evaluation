@@ -137,14 +137,6 @@ func Sender(logger *log.Logger) {
 			logger.Error(err.Error())
 		}
 
-		err = reconciler.TerminateCheckpointedPod(ctx, pod.Name, clientset, namespace)
-		if err != nil {
-			logger.Error(err.Error())
-			return
-		} else {
-			logger.Info("Pod terminated")
-		}
-
 		directory := os.Getenv("CHECKPOINTS_FOLDER")
 
 		if _, err := exec.Command("sudo", "touch", directory+"/dummy").Output(); err != nil {

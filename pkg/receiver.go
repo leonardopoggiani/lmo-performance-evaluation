@@ -129,6 +129,7 @@ func Receive(logger *log.Logger) {
 	}
 
 	logger.Info("Starting receiver")
+	i := 0
 
 	for {
 		if waitForFile(21000*time.Second, directory) {
@@ -154,10 +155,14 @@ func Receive(logger *log.Logger) {
 					logger.Error(err.Error())
 				}
 
-				SaveAbsoluteTimeToDB(ctx, db, len(pod.Spec.Containers), end, "restore", "end_times", "containers", "elapsed")
-				if err != nil {
-					logger.Error(err.Error())
+				if i%2 == 0 {
+					SaveAbsoluteTimeToDB(ctx, db, len(pod.Spec.Containers), end, "restore", "back_and_forth_times", "containers", "elapsed")
+					if err != nil {
+						logger.Error(err.Error())
+					}
 				}
+
+				i++
 
 				DeletePodsStartingWithTest(ctx, clientset, pod.Namespace)
 			}

@@ -14,17 +14,17 @@ import (
 )
 
 func GetLatency(ctx context.Context, clientset *kubernetes.Clientset, namespace string, db *pgx.Conn, numContainers int, logger *log.Logger) {
-	serviceAddress := "10.106.175.108"
+	serviceAddress := "10.99.16.67"
 	logger.Info("Starting latency test")
 
 	for {
-		statusCode, latency, err := CurlServiceAddress(serviceAddress)
-		if err != nil {
-			logger.Info("Error during service address curl request:", err)
-			pkg.SaveTimeToDB(ctx, db, numContainers, 0, "unreachable", "latency", "containers", "elapsed")
-		} else if statusCode == "200" {
-			logger.Infof("Successfully reached service at %s with latency: %v\n", serviceAddress, latency)
-			pkg.SaveTimeToDB(ctx, db, numContainers, latency, "service", "latency", "containers", "elapsed")
+		startTime := time.Now()
+		statusCode := CurlServiceAddress(serviceAddress)
+		elapsed := time.Since(startTime)
+
+		if statusCode == "200" {
+			logger.Infof("Successfully reached service at %s with latency: %v\n", serviceAddress, elapsed)
+			pkg.SaveTimeToDB(ctx, db, numContainers, elapsed, "service", "latency", "containers", "elapsed")
 			time.Sleep(time.Second * 1)
 			continue
 		} else {
@@ -35,24 +35,21 @@ func GetLatency(ctx context.Context, clientset *kubernetes.Clientset, namespace 
 	}
 }
 
-func CurlServiceAddress(serviceAddress string) (string, time.Duration, error) {
-	startTime := time.Now()
+func CurlServiceAddress(serviceAddress string) string {
 
-	cmd := exec.Command("curl", "--head", "--silent", "--connect-timeout", "2", serviceAddress)
+	cmd := exec.Command("curl", "--head", "--silent", "--connect-timeout", "50", "--max-time", "5", "--parallel", "--retry", "100", "--retry-delay", "1", "--retry-all-errors", serviceAddress)
 	output, err := cmd.CombinedOutput()
 
-	elapsed := time.Since(startTime)
-
 	if err != nil {
-		return "500", elapsed, errors.New("failed to curl service address: " + err.Error())
+		return "500"
 	}
 
 	statusCode, err := extractStatusCode(output)
 	if err != nil {
-		return "500", elapsed, errors.New("failed to extract status code: " + err.Error())
+		return "500"
 	}
 
-	return statusCode, elapsed, nil
+	return statusCode
 }
 
 func extractStatusCode(response []byte) (string, error) {
