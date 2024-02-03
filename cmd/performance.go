@@ -164,7 +164,3 @@ var performanceCmd = &cobra.Command{
 		// }
 	},
 }
-
-func init() {
-	rootCmd.AddCommand(dummyCmd)
-}

@@ -14,7 +14,7 @@ import (
 )
 
 func GetLatency(ctx context.Context, clientset *kubernetes.Clientset, namespace string, db *pgx.Conn, numContainers int, logger *log.Logger) {
-	serviceAddress := "10.99.16.67"
+	serviceAddress := "10.110.178.18"
 	logger.Info("Starting latency test")
 
 	for {

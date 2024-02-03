@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: latency-test-svc
-  namespace: test-offloading
+  namespace: pod-offloading
 spec:
   selector:
     app: test 
